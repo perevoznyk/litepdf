@@ -4410,7 +4410,7 @@ BOOL __stdcall LITEPDF_PUBLIC litePDF_AddSignerPEM(void *pctx,
    }
 
    pkey = PEM_read_bio_PrivateKey(pkeyMem, NULL, pkey_password_cb, const_cast<char *>(pkeyPassword));
-   if (!cert) {
+   if (!pkey) {
       std::string errs = getOpenSSLErrors();
       BIO_free (pemMem);
       BIO_free (pkeyMem);
