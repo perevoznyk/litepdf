@@ -3887,8 +3887,8 @@ static void drawText(struct processData *pd, const ENHMETARECORD *lpEMFR, const 
          rcl.bottom = rcl.bottom * (-1);
       }
 
-      LogicalUnitToPdf(pd, rcl.left, rcl.top, rclx, rcly, true, true);
-      LogicalUnitToPdf(pd, rcl.right, rcl.bottom, rclw, rclh, true, true);
+      LogicalUnitToPdf(pd, rcl.left, rcl.top, rclx, rcly);
+      LogicalUnitToPdf(pd, rcl.right, rcl.bottom, rclw, rclh);
 
       rclw -= rclx;
       rclh -= rcly;
