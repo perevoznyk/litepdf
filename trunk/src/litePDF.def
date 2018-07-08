@@ -17,6 +17,8 @@ EXPORTS
 	litePDF_Close
 	litePDF_GetPageCount
 	litePDF_GetPageSize
+	litePDF_GetPageRotation
+	litePDF_SetPageRotation
 	litePDF_AddPage
 	litePDF_InsertPage
 	litePDF_UpdatePage
