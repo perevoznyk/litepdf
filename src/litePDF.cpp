@@ -1237,6 +1237,108 @@ BOOL __stdcall LITEPDF_PUBLIC litePDF_GetPageSize(void *pctx,
 }
 //---------------------------------------------------------------------------
 
+BOOL __stdcall LITEPDF_PUBLIC litePDF_GetPageRotation(void *pctx,
+                                                      unsigned int pageIndex,
+                                                      int *out_degrees)
+{
+   if (!pctx) {
+      return FALSE;
+   }
+
+   litePDFContext *ctx = (litePDFContext *) pctx;
+
+   LITEPDF_RETURN_VAL_IF_FAIL (out_degrees != NULL, "litePDF_GetPageRotation", FALSE);
+
+   if (ctx->documentSaved) {
+      if (ctx->on_error) {
+         ctx->on_error(ERROR_INVALID_OPERATION, "litePDF_GetPageRotation: Document was already saved", ctx->on_error_user_data);
+      }
+      return FALSE;
+   }
+
+   try {
+      PdfDocument *document = NULL;
+
+      if (ctx->streamed_document) {
+         document = ctx->streamed_document;
+      } else if (ctx->mem_document) {
+         document = ctx->mem_document;
+      } else {
+         if (ctx->on_error) {
+            ctx->on_error(ERROR_INVALID_HANDLE, "litePDF_GetPageRotation: No document is opened", ctx->on_error_user_data);
+         }
+
+         return FALSE;
+      }
+
+      if (pageIndex >= document->GetPageCount()) {
+         if (ctx->on_error) {
+            ctx->on_error(ERROR_INVALID_INDEX, "litePDF_GetPageRotation: Page index is out of range", ctx->on_error_user_data);
+         }
+
+         return FALSE;
+      }
+
+      *out_degrees = document->GetPage((int) pageIndex)->GetRotation();
+   } catch (const PdfError &error) {
+      handleException(ctx, "litePDF_GetPageRotation", error);
+      return FALSE;
+   }
+
+   return TRUE;
+}
+//---------------------------------------------------------------------------
+
+BOOL __stdcall LITEPDF_PUBLIC litePDF_SetPageRotation(void *pctx,
+                                                      unsigned int pageIndex,
+                                                      int degrees)
+{
+   if (!pctx) {
+      return FALSE;
+   }
+
+   litePDFContext *ctx = (litePDFContext *) pctx;
+
+   if (ctx->documentSaved) {
+      if (ctx->on_error) {
+         ctx->on_error(ERROR_INVALID_OPERATION, "litePDF_SetPageRotation: Document was already saved", ctx->on_error_user_data);
+      }
+      return FALSE;
+   }
+
+   try {
+      PdfDocument *document = NULL;
+
+      if (ctx->streamed_document) {
+         document = ctx->streamed_document;
+      } else if (ctx->mem_document) {
+         document = ctx->mem_document;
+      } else {
+         if (ctx->on_error) {
+            ctx->on_error(ERROR_INVALID_HANDLE, "litePDF_SetPageRotation: No document is opened", ctx->on_error_user_data);
+         }
+
+         return FALSE;
+      }
+
+      if (pageIndex >= document->GetPageCount()) {
+         if (ctx->on_error) {
+            ctx->on_error(ERROR_INVALID_INDEX, "litePDF_SetPageRotation: Page index is out of range", ctx->on_error_user_data);
+         }
+
+         return FALSE;
+      }
+
+      document->GetPage((int) pageIndex)->SetRotation(degrees);
+   } catch (const PdfError &error) {
+      handleException(ctx, "litePDF_SetPageRotation", error);
+      return FALSE;
+   }
+
+   return TRUE;
+}
+//---------------------------------------------------------------------------
+
 HDC __stdcall LITEPDF_PUBLIC litePDF_AddPage(void *pctx,
                                              unsigned int width_u,
                                              unsigned int height_u,

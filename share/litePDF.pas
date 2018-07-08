@@ -523,6 +523,27 @@ type
          @see GetUnit
       }
 
+      function GetPageRotation(pageIndex : LongWord) : Integer;
+      {**<
+         Gets rotation of an existing page, in degrees. Expected values are 0, 90, 180 and 270.
+
+         @param pageIndex Page index for which get the page size; counts from 0.
+         @return Rotation of the page, in degrees.
+
+         @see SetPageRotation
+      }
+
+      procedure SetPageRotation(pageIndex : LongWord;
+                                degrees : Integer);
+      {**<
+         Sets rotation of an existing page, in degrees. Expected values are 0, 90, 180 and 270.
+
+         @param pageIndex Page index for which get the page size; counts from 0.
+         @param degrees Rotation of the page to set, in degrees.
+
+         @see GetPageRotation
+      }
+
       function AddPage(width_u : LongWord;
                        height_u : LongWord;
                        width_px : LongWord;
@@ -2190,6 +2211,37 @@ begin
    func := lpfunc(GetProc('litePDF_GetPageSize'));
 
    ThrowLastErrorIfFail(func(context, pageIndex, @width_u, @height_u), self, _func);
+end;
+
+function TLitePDF.GetPageRotation(pageIndex : LongWord) : Integer;
+const _func = 'TLitePDF.GetPageRotation';
+type lpfunc = function(pctx : Pointer; pageIndex : LongWord; out_degrees : PInteger) : BOOL; stdcall;
+var func : lpfunc;
+begin
+   ensureLibraryLoaded(_func);
+
+   ThrowIfFail(lib <> THandle(0), 'lib <> THandle(0)', _func);
+
+   freeLastError;
+   func := lpfunc(GetProc('litePDF_GetPageRotation'));
+
+   ThrowLastErrorIfFail(func(context, pageIndex, @Result), self, _func);
+end;
+
+procedure TLitePDF.SetPageRotation(pageIndex : LongWord;
+                                   degrees : Integer);
+const _func = 'TLitePDF.SetPageRotation';
+type lpfunc = function(pctx : Pointer; pageIndex : LongWord; degrees : Integer) : BOOL; stdcall;
+var func : lpfunc;
+begin
+   ensureLibraryLoaded(_func);
+
+   ThrowIfFail(lib <> THandle(0), 'lib <> THandle(0)', _func);
+
+   freeLastError;
+   func := lpfunc(GetProc('litePDF_SetPageRotation'));
+
+   ThrowLastErrorIfFail(func(context, pageIndex, degrees), self, _func);
 end;
 
 function TLitePDF.AddPage(width_u : LongWord;

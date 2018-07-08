@@ -728,6 +728,39 @@ void TLitePDF::GetPageSize(unsigned int pageIndex,
 }
 //---------------------------------------------------------------------------
 
+int TLitePDF::GetPageRotation(unsigned int pageIndex)
+{
+   const char *_func = "TLitePDF::GetPageRotation";
+
+   ensureLibraryLoaded(_func);
+
+   ThrowIfFail(lib != NULL);
+
+   int degrees = 0;
+
+   InitFunc(BOOL, litePDF_GetPageRotation, (void *pctx, unsigned int pageIndex, int *out_degrees));
+
+   ThrowLastErrorIfFail(func(context, pageIndex, &degrees));
+
+   return degrees;
+}
+//---------------------------------------------------------------------------
+
+void TLitePDF::SetPageRotation(unsigned int pageIndex,
+                               int degrees)
+{
+   const char *_func = "TLitePDF::SetPageRotation";
+
+   ensureLibraryLoaded(_func);
+
+   ThrowIfFail(lib != NULL);
+
+   InitFunc(BOOL, litePDF_SetPageRotation, (void *pctx, unsigned int pageIndex, int degrees));
+
+   ThrowLastErrorIfFail(func(context, pageIndex, degrees));
+}
+//---------------------------------------------------------------------------
+
 HDC TLitePDF::AddPage(unsigned int width_u,
                       unsigned int height_u,
                       unsigned int width_px,

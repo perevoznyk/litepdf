@@ -628,6 +628,27 @@ class TLitePDF
       @see GetUnit
    */
 
+   int GetPageRotation(unsigned int pageIndex);
+   /**<
+      Gets rotation of an existing page, in degrees. Expected values are 0, 90, 180 and 270.
+
+      @param pageIndex Page index for which get the page size; counts from 0.
+      @return Rotation of the page, in degrees.
+
+      @see SetPageRotation
+   */
+
+   void SetPageRotation(unsigned int pageIndex,
+                        int degrees);
+   /**<
+      Sets rotation of an existing page, in degrees. Expected values are 0, 90, 180 and 270.
+
+      @param pageIndex Page index for which get the page size; counts from 0.
+      @param degrees Rotation of the page to set, in degrees.
+
+      @see GetPageRotation
+   */
+
    HDC AddPage(unsigned int width_u,
                unsigned int height_u,
                unsigned int width_px,

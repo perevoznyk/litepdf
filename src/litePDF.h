@@ -395,6 +395,34 @@ BOOL __stdcall LITEPDF_PUBLIC litePDF_GetPageSize(void *pctx,
    @see litePDF_GetUnit
 */
 
+BOOL __stdcall LITEPDF_PUBLIC litePDF_GetPageRotation(void *pctx,
+                                                      unsigned int pageIndex,
+                                                      int *out_degrees);
+/**<
+   Gets rotation of an existing page, in degrees. Expected values are 0, 90, 180 and 270.
+
+   @param pctx a litePDF context, previously created with @ref litePDF_CreateContext.
+   @param pageIndex Page index for which get the page size; counts from 0.
+   @param out_degrees [out] Rotation of the page, in degrees.
+   @return Whether succeeded.
+
+   @see litePDF_SetPageRotation
+*/
+
+BOOL __stdcall LITEPDF_PUBLIC litePDF_SetPageRotation(void *pctx,
+                                                      unsigned int pageIndex,
+                                                      int degrees);
+/**<
+   Sets rotation of an existing page, in degrees. Expected values are 0, 90, 180 and 270.
+
+   @param pctx a litePDF context, previously created with @ref litePDF_CreateContext.
+   @param pageIndex Page index for which get the page size; counts from 0.
+   @param degrees Rotation of the page to set, in degrees.
+   @return Whether succeeded.
+
+   @see litePDF_GetPageRotation
+*/
+
 #define LITEPDF_DRAW_FLAG_NONE                       (0)      /**< None draw flags */
 #define LITEPDF_DRAW_FLAG_EMBED_FONTS_NONE           (1 << 4) /**< Do not embed any fonts into resulting PDF.
    @note: Fonts' subset is embeded by default, if none of the @ref LITEPDF_DRAW_FLAG_EMBED_FONTS_NONE, @ref LITEPDF_DRAW_FLAG_EMBED_FONTS_COMPLETE, @ref LITEPDF_DRAW_FLAG_EMBED_FONTS_SUBSET,
