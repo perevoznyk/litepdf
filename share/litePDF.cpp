@@ -761,6 +761,7 @@ void TLitePDF::SetPageRotation(unsigned int pageIndex,
 }
 //---------------------------------------------------------------------------
 
+
 HDC TLitePDF::AddPage(unsigned int width_u,
                       unsigned int height_u,
                       unsigned int width_px,
