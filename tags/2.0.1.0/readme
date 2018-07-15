@@ -1,0 +1,8 @@
+litePDF SDK contains two versions of litePDF.dll and litePDF.lib files, one
+is built in Microsoft Visual C++ (a coff format), which resides directly in
+bin/ and lib/ folders, and one built in C++ Builder (an omf format), which
+resides in bin/omf/ and lib/omf/ folders. The two libraries are interchangeable,
+as long as the PoDoFo::PdfDocument is not used - it is, when there are not
+used litePDF_GetPoDoFoDocument() or TLitePDF::GetPoDoFoDocument() functions.
+If you need these, make sure you distribute correct litePDF.dll file with your
+executable.
