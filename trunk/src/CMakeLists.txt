@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.1)
 cmake_policy(VERSION 3.1)
 
 project(litePDF
-	VERSION 2.0.0.0
+	VERSION 2.0.1.0
 	LANGUAGES CXX)
 
 # Load modules from the source tree
