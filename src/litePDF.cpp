@@ -30,6 +30,11 @@
 #include <winsock2.h>
 #include <windows.h>
 
+#ifdef _DEBUG
+#include <limits>
+#include <climits>
+#endif
+
 #include "litePDF.h"
 #include "encodings.h"
 #include "meta2pdf.h"
@@ -167,6 +172,20 @@ static void setLitePDFAsProducer(PdfDocument *document)
 void * __stdcall LITEPDF_PUBLIC litePDF_CreateContext(litePDFErrorCB on_error,
                                                       void *on_error_user_data)
 {
+#ifdef _DEBUG
+   #ifdef max
+   #undef max
+   #endif
+
+   // Some safety checks
+   if (std::numeric_limits<pdf_int64>::max() != _I64_MAX) {
+      if (on_error) {
+         on_error (ERROR_BAD_ENVIRONMENT, "litePDF_CreateContext: std::numeric_limits doesn't support __int64", on_error_user_data);
+      }
+      return NULL;
+   }
+#endif
+
    litePDFContext *ctx;
 
    ctx = new litePDFContext();
