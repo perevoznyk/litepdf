@@ -882,7 +882,7 @@ BOOL __stdcall LITEPDF_PUBLIC litePDF_CreateSignature(void *pctx,
    Creates a new signature field named @a name. The field is created completely empty.
    Use @ref litePDF_SetSignatureDate, @ref litePDF_SetSignatureReason,
    @ref litePDF_SetSignatureLocation, @ref litePDF_SetSignatureCreator,
-   @ref litePDF_SetSignatureAppearance and such to populated it with required values.
+   @ref litePDF_SetSignatureAppearance and such to populate it with required values.
    Finally, to sign the signature field use @ref litePDF_SaveToFileWithSign family
    functions.
 
@@ -1135,7 +1135,7 @@ BOOL __stdcall LITEPDF_PUBLIC litePDF_SetSignatureAppearance(void *pctx,
    @param offsetY_u Y-offset of the resource inside the annotation of the signature, in the current unit.
    @return Whether succeeded.
 
-   @note The resoruce position offset is from [left, top] corner of the annotation rectangle.
+   @note The resource position offset is from [left, top] corner of the annotation rectangle.
 
    @see litePDF_GetUnit, litePDF_AddResource, litePDF_GetSignatureCount, litePDF_CreateSignature
 */
