@@ -4733,7 +4733,7 @@ static BOOL signToOutputDevice(litePDFContext *ctx,
          DeletePtr(sigField);
          DeletePtr(annotation);
 
-         LITEPDF_RETURN_VAL_IF_FAIL (ClaimGetSignatureFieldError(ctx, errorCode, "litePDF_SetSignatureReason"), "litePDF_SetSignatureReason", FALSE);
+         LITEPDF_RETURN_VAL_IF_FAIL (ClaimGetSignatureFieldError(ctx, errorCode, where), where, FALSE);
       }
    } catch (const PdfError &error) {
       handleException(ctx, where, error);
