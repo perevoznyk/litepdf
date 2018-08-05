@@ -888,7 +888,7 @@ type
          Creates a new signature field named @a name. The field is created completely empty.
          Use @ref SetSignatureDate, @ref SetSignatureReason,
          @ref SetSignatureLocation, @ref SetSignatureCreator,
-         @ref SetSignatureAppearance and such to populated it with required values.
+         @ref SetSignatureAppearance and such to populate it with required values.
          Finally, to sign the signature field use @ref SaveToFileWithSign family
          functions.
 
@@ -1071,7 +1071,7 @@ type
          @param offsetX_u X-offset of the resource inside the annotation of the signature, in the current unit.
          @param offsetY_u Y-offset of the resource inside the annotation of the signature, in the current unit.
 
-         @note The resoruce position offset is from [left, top] corner of the annotation rectangle.
+         @note The resource position offset is from [left, top] corner of the annotation rectangle.
 
          @see GetUnit, AddResource, GetSignatureCount, CreateSignature
       }
