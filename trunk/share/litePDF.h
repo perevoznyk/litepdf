@@ -27,6 +27,10 @@
 #include <windows.h>
 #include <string>
 
+#ifdef LITEPDF_USE_VCL_EXCEPTION
+#include <vcl.h>
+#endif
+
 /** @mainpage litePDF
 litePDF is a library (DLL), which allows creating new and editing of existing PDF documents with simple API.
 Page content is drawn with standard GDI functions through a device context (HDC or TCanvas, in case of Delphi or C++ Builder).<br>
@@ -120,25 +124,39 @@ typedef void (__stdcall *TLitePDFFinishSignatureFunc)(char *signature, unsigned 
    Set @a signature_len to zero on any error. Note the callback is called only once.
 */
 
+#ifdef LITEPDF_USE_VCL_EXCEPTION
+class TLitePDFException : public Sysutils::Exception
+#else
 class TLitePDFException
+#endif
 {
  private:
    DWORD code;
+   #ifndef LITEPDF_USE_VCL_EXCEPTION
    char *msg;
+   #endif
  public:
+   #ifdef LITEPDF_USE_VCL_EXCEPTION
+   __fastcall TLitePDFException(DWORD pCode, const char *pMsg);
+   __fastcall TLitePDFException(const TLitePDFException &src);
+   virtual __fastcall ~TLitePDFException();
+   #else
    TLitePDFException(DWORD pCode, const char *pMsg);
    TLitePDFException(const TLitePDFException &src);
    virtual ~TLitePDFException();
+   #endif
 
    DWORD getCode(void) const;
    /**<
       @return Error code.
    */
 
+   #ifndef LITEPDF_USE_VCL_EXCEPTION
    const char *getMessage(void) const;
    /**<
       @return Error message.
    */
+   #endif
 };
 //---------------------------------------------------------------------------
 
