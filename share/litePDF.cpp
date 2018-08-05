@@ -24,6 +24,12 @@
 #include <stdio.h>
 #include <string>
 
+#ifdef LITEPDF_USE_VCL_EXCEPTION
+#include <vcl.h>
+
+#pragma hdrstop
+#endif
+
 #include "litePDF.h"
 
 // link to version.lib, due to checkAPIVersion()
@@ -74,31 +80,51 @@ namespace litePDF {
 
 //---------------------------------------------------------------------------
 
+#ifdef LITEPDF_USE_VCL_EXCEPTION
+__fastcall TLitePDFException::TLitePDFException(DWORD pCode, const char *pMsg) : Sysutils::Exception(pMsg)
+#else
 TLitePDFException::TLitePDFException(DWORD pCode, const char *pMsg)
+#endif
 {
    code = pCode;
+   #ifndef LITEPDF_USE_VCL_EXCEPTION
    if (pMsg) {
       msg = strdup(pMsg);
    } else {
       msg = NULL;
    }
+   #endif
 }
 //---------------------------------------------------------------------------
 
+#ifdef LITEPDF_USE_VCL_EXCEPTION
+__fastcall TLitePDFException::TLitePDFException(const TLitePDFException &src) : Sysutils::Exception(src)
+#else
 TLitePDFException::TLitePDFException(const TLitePDFException &src)
+#endif
 {
    code = src.getCode();
+   #ifdef LITEPDF_USE_VCL_EXCEPTION
+   Message = src.Message;
+   #else
    if (src.getMessage()) {
       msg = strdup(src.getMessage());
    } else {
       msg = NULL;
    }
+   #endif
 }
 //---------------------------------------------------------------------------
 
+#ifdef LITEPDF_USE_VCL_EXCEPTION
+__fastcall TLitePDFException::~TLitePDFException()
+#else
 TLitePDFException::~TLitePDFException()
+#endif
 {
+   #ifndef LITEPDF_USE_VCL_EXCEPTION
    FreePtr(msg);
+   #endif
 }
 //---------------------------------------------------------------------------
 
@@ -108,10 +134,12 @@ DWORD TLitePDFException::getCode(void) const
 }
 //---------------------------------------------------------------------------
 
+#ifndef LITEPDF_USE_VCL_EXCEPTION
 const char *TLitePDFException::getMessage(void) const
 {
    return msg;
 }
+#endif // !LITEPDF_USE_VCL_EXCEPTION
 //---------------------------------------------------------------------------
 
 TLitePDF::TLitePDF()
