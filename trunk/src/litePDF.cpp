@@ -4195,7 +4195,7 @@ BOOL __stdcall LITEPDF_PUBLIC litePDF_SetSignatureAppearance(void *pctx,
 
             // relative to signature field annotation
             dE = annotation->GetRect().GetLeft() + dE;
-            dF = annotation->GetRect().GetBottom() - annotation->GetRect().GetHeight() + dF;
+            dF = annotation->GetRect().GetBottom() + dF;
 
             sigXObject.AddResource(resource.identifier, resource.objectReference, "XObject");
 
