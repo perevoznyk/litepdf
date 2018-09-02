@@ -43,6 +43,9 @@ type
    TLitePDFErrorEvent = procedure(code : LongWord;
                                   const msg : PAnsiChar;
                                   user_data : Pointer); stdcall;
+   TLitePDFEvalFontFlagCB = function(inout_faceName : PAnsiChar;
+                                      faceNameBufferSize : LongWord;
+                                      user_data : Pointer) : LongWord; stdcall;
    TLitePDFAppendSignatureDataFunc = procedure (bytes : PByte;
                                                 bytes_len : LongWord;
                                                 user_data : Pointer); stdcall;
@@ -62,7 +65,15 @@ type
                   LitePDFUnit_100th_inch  = 7, {**< 1/100th of an inch unit; 5" is value 500 *}
                   LitePDFUnit_1000th_inch = 8  {**< 1/1000th of an inch unit; 5" is value 5000 *}
                );
+//---------------------------------------------------------------------------
 
+   TLitePDFFontFlags = (
+                  LitePDFFontFlag_Default       = 0, {**< Use the settings as specified by the draw operation *}
+                  LitePDFFontFlag_DoNotEmbed    = 1, {**< Do not embed the font *}
+                  LitePDFFontFlag_EmbedComplete = 2, {**< Embed complete font *}
+                  LitePDFFontFlag_EmbedSubset   = 3, {**< Embed the font with used characters only *}
+                  LitePDFFontFlag_Substitute    = 4  {**< Substitute the font with one of the base fonts, if possible *}
+               );
 //---------------------------------------------------------------------------
 
    TLitePDFDrawFlags = (
@@ -162,6 +173,8 @@ type
       onErrorUserData : Pointer;
       lastErrorCode : DWORD;
       lastErrorMessage : AnsiString;
+      onEvalFontFlag : TLitePDFEvalFontFlagCB;
+      onEvalFontFlagUserData : Pointer;
 
       function GetProc(const pProcIdent : PAnsiChar) : FARPROC;
       function checkAPIVersion(major : LongWord;
@@ -327,6 +340,17 @@ type
          @returns The @a unitValue converted to inches.
 
          @see GetUnit, InchToUnit, MMToUnit, UnitToMM, UnitToInchEx
+      *}
+
+      procedure SetEvalFontFlagCallback(callback : TLitePDFEvalFontFlagCB;
+                                        userData : Pointer);
+      {**<
+         Sets a callback to evaluate what to do with a font. The @a callback can
+         be NULL, to unset any previously set value. See @ref TLitePDFEvalFontFlagCB
+         for more information about the @a callback parameters and what it can do.
+
+         @param callback A @ref TLitePDFEvalFontFlagCB callback to set, or NULL.
+         @param userData A user data to pass to @a callback when called.
       *}
 
       procedure PrepareEncryption(userPassword : AnsiString;
@@ -1573,6 +1597,21 @@ begin
    end;
 end;
 
+function litePDFEvalFontFlag(inout_faceName : PAnsiChar;
+                             faceNameBufferSize : LongWord;
+                             user_data : Pointer) : LongWord; stdcall;
+const _func = 'LitePDF::litePDFEvalFontFlag';
+var lpdf : TLitePDF;
+begin
+   ThrowIfFail(user_data <> nil, 'user_data <> nil', _func);
+
+   lpdf := TLitePDF(user_data);
+
+   if Assigned(lpdf.onEvalFontFlag) then
+      Result := lpdf.onEvalFontFlag(inout_faceName, faceNameBufferSize, lpdf.onEvalFontFlagUserData)
+   else
+      Result := 0 { LitePDFFontFlag_Default };
+end;
 //----------------------------------------------------------------------------
 
 constructor TLitePDFException.Create(pCode : DWORD;
@@ -1612,6 +1651,8 @@ begin
    lastErrorMessage := '';
    onError := nil;
    onErrorUserData := nil;
+   onEvalFontFlag := nil;
+   onEvalFontFlagUserData := nil;
 end;
 
 destructor TLitePDF.Destroy;
@@ -1731,8 +1772,10 @@ procedure TLitePDF.ensureLibraryLoaded(const _func : PAnsiChar);
 type
    litePDFErrorCB = procedure (code : LongWord; const msg : PAnsiChar; user_data : Pointer); stdcall;
    lpfunc = function (on_error : litePDFErrorCB; on_error_user_data : Pointer) : Pointer; stdcall;
+   lpfunc2 = function (pctx : Pointer; callback : TLitePDFEvalFontFlagCB; callback_user_data : Pointer) : Boolean; stdcall;
 var exmsg : AnsiString;
    func : lpfunc;
+   func2 : lpfunc2;
 begin
    if lib <> THandle(0) then
    begin
@@ -1764,6 +1807,9 @@ begin
       FreeLibrary (lib);
       lib := THandle(0);
       ThrowMessageIfFail (context <> nil, 'Failed to create context', _func);
+   end else begin
+      func2 := lpfunc2(GetProc('litePDF_SetEvalFontFlagCallback'));
+      ThrowLastErrorIfFail(func2(context, litePDFEvalFontFlag, self), self, _func);
    end;
 end;
 
@@ -1958,6 +2004,13 @@ end;
 function TLitePDF.UnitToInch(unitValue : Double) : Double;
 begin
    Result := UnitToInchEx(GetUnit, unitValue);
+end;
+
+procedure TLitePDF.SetEvalFontFlagCallback(callback : TLitePDFEvalFontFlagCB;
+                                           userData : Pointer);
+begin
+   onEvalFontFlag := callback;
+   onEvalFontFlagUserData := userData;
 end;
 
 procedure TLitePDF.PrepareEncryption(userPassword : AnsiString;

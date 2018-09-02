@@ -4,6 +4,7 @@ EXPORTS
 	litePDF_FreeContext
 	litePDF_SetUnit
 	litePDF_GetUnit
+	litePDF_SetEvalFontFlagCallback
 	litePDF_PrepareEncryption
 	litePDF_CreateFileDocument
 	litePDF_CreateFileDocumentW

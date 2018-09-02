@@ -212,6 +212,9 @@ struct processData
 
    Meta2PdfErrorCB on_error;
    void *on_error_user_data;
+   Meta2PdfEvalFontFlagCB on_evalFontFlag;
+   void *on_evalFontFlagUserData;
+
 
    map<DWORD, MObjectData *> objects;
    vector<struct dcState> savedStates;
@@ -287,7 +290,9 @@ void PlayMeta2Pdf(HENHMETAFILE emf,
                   litePDF::MEncodingsCache *encodingsCache,
                   unsigned int drawFlags,
                   Meta2PdfErrorCB on_error,
-                  FAR void *on_error_user_data)
+                  FAR void *on_error_user_data,
+                  Meta2PdfEvalFontFlagCB on_evalFontFlag,
+                  FAR void *on_evalFontFlagUserData)
 {
    if (!emf) {
       if (on_error) {
@@ -378,6 +383,8 @@ void PlayMeta2Pdf(HENHMETAFILE emf,
       pd.encodingsCache = encodingsCache;
       pd.on_error = on_error;
       pd.on_error_user_data = on_error_user_data;
+      pd.on_evalFontFlag = on_evalFontFlag;
+      pd.on_evalFontFlagUserData = on_evalFontFlagUserData;
       pd.replayDC = CreateCompatibleDC(NULL);
       pd.isWindows6x = getIsWindows6x();
 
@@ -418,7 +425,9 @@ void CloseMeta2PdfDC(HDC hDC,
                      litePDF::MEncodingsCache *encodingsCache,
                      unsigned int drawFlags,
                      Meta2PdfErrorCB on_error,
-                     FAR void *on_error_user_data)
+                     FAR void *on_error_user_data,
+                     Meta2PdfEvalFontFlagCB on_evalFontFlag,
+                     FAR void *on_evalFontFlagUserData)
 {
    HENHMETAFILE emf;
 
@@ -433,7 +442,7 @@ void CloseMeta2PdfDC(HDC hDC,
 
    writeDebugPage (emf, page_mm, page_px);
 
-   PlayMeta2Pdf(emf, page_mm, page_px, document, painter, encodingsCache, drawFlags, on_error, on_error_user_data);
+   PlayMeta2Pdf(emf, page_mm, page_px, document, painter, encodingsCache, drawFlags, on_error, on_error_user_data, on_evalFontFlag, on_evalFontFlagUserData);
 
    DeleteEnhMetaFile (emf);
 }
@@ -2905,9 +2914,35 @@ static bool selectFont(struct processData *pd)
    }
  
    const PdfEncoding *nativeEncoding = NULL;
+   unsigned int fontFlag = LITEPDF_FONT_FLAG_DEFAULT;
+   char faceName[LF_FACESIZE + 1];
+   memcpy(faceName, lf.lfFaceName, LF_FACESIZE);
+   faceName[LF_FACESIZE - 1] = 0;
 
-   if ((pd->drawFlags & LITEPDF_DRAW_FLAG_SUBSTITUTE_FONTS) != 0) {
-      const char *substName = getSubstituteFontName (lf.lfFaceName, lf.lfWeight > 500, lf.lfItalic != FALSE, lf.lfCharSet == SYMBOL_CHARSET);
+   if (pd->on_evalFontFlag) {
+      fontFlag = pd->on_evalFontFlag(faceName, LF_FACESIZE, pd->on_evalFontFlagUserData);
+      faceName[LF_FACESIZE - 1] = 0;
+
+      /* Make sure unknown values are treated as the default value */
+      if (fontFlag != LITEPDF_FONT_FLAG_DO_NOT_EMBED &&
+          fontFlag != LITEPDF_FONT_FLAG_EMBED_COMPLETE &&
+          fontFlag != LITEPDF_FONT_FLAG_EMBED_SUBSET &&
+          fontFlag != LITEPDF_FONT_FLAG_SUBSTITUTE) {
+            fontFlag = LITEPDF_FONT_FLAG_DEFAULT;
+      }
+   }
+
+   if (fontFlag == LITEPDF_FONT_FLAG_DEFAULT) {
+      if ((pd->drawFlags & LITEPDF_DRAW_FLAG_SUBSTITUTE_FONTS) != 0)
+         fontFlag = LITEPDF_FONT_FLAG_SUBSTITUTE;
+      else if ((pd->drawFlags & LITEPDF_DRAW_FLAG_EMBED_FONTS_SUBSET) != 0)
+         fontFlag = LITEPDF_FONT_FLAG_EMBED_SUBSET;
+      else if ((pd->drawFlags & LITEPDF_DRAW_FLAG_EMBED_FONTS_COMPLETE) != 0)
+         fontFlag = LITEPDF_FONT_FLAG_EMBED_COMPLETE;
+   }
+
+   if (fontFlag == LITEPDF_FONT_FLAG_SUBSTITUTE) {
+      const char *substName = getSubstituteFontName (faceName, lf.lfWeight > 500, lf.lfItalic != FALSE, lf.lfCharSet == SYMBOL_CHARSET);
       if (substName) {
          if (!nativeEncoding) {
             nativeEncoding = getNativeEncoding (pd, lf.lfCharSet);
@@ -2917,9 +2952,9 @@ static bool selectFont(struct processData *pd)
       }
    }
 
-   if (!font && canEmbedFont && (pd->drawFlags & LITEPDF_DRAW_FLAG_EMBED_FONTS_SUBSET) != 0) {
+   if (!font && canEmbedFont && fontFlag == LITEPDF_FONT_FLAG_EMBED_SUBSET) {
       // subset fonts are always embedded
-      font = pd->document->CreateFontSubset(lf.lfFaceName, lf.lfWeight > 500, lf.lfItalic != FALSE, lf.lfCharSet == SYMBOL_CHARSET, PdfEncodingFactory::GlobalIdentityEncodingInstance());
+      font = pd->document->CreateFontSubset(faceName, lf.lfWeight > 500, lf.lfItalic != FALSE, lf.lfCharSet == SYMBOL_CHARSET, PdfEncodingFactory::GlobalIdentityEncodingInstance());
    }
 
    if (!font) {
@@ -2929,11 +2964,14 @@ static bool selectFont(struct processData *pd)
          local_lf.lfWeight = FW_BOLD;
       }
 
-      font = pd->document->CreateFont(local_lf, PdfEncodingFactory::GlobalIdentityEncodingInstance(), (pd->drawFlags & LITEPDF_DRAW_FLAG_EMBED_FONTS_COMPLETE) != 0 && canEmbedFont);
+      memcpy(local_lf.lfFaceName, faceName, LF_FACESIZE);
+      local_lf.lfFaceName[LF_FACESIZE - 1] = 0;
+
+      font = pd->document->CreateFont(local_lf, PdfEncodingFactory::GlobalIdentityEncodingInstance(), fontFlag == LITEPDF_FONT_FLAG_EMBED_COMPLETE && canEmbedFont);
       if (!font) {
          if (pd->on_error) {
             char buff[256];
-            sprintf(buff, "Faild to create font '%s', bold:%s italic:%s; fallbacking to Helvetica", lf.lfFaceName, lf.lfWeight > 500 ? "yes" : "no", lf.lfItalic != FALSE ? "yes" : "no");
+            sprintf(buff, "Faild to create font '%s', bold:%s italic:%s; fallbacking to Helvetica", local_lf.lfFaceName, lf.lfWeight > 500 ? "yes" : "no", lf.lfItalic != FALSE ? "yes" : "no");
             pd->on_error(ERROR_INVALID_PARAMETER, buff, pd->on_error_user_data);
          }
 
@@ -2951,7 +2989,7 @@ static bool selectFont(struct processData *pd)
    if (!font) {
       if (pd->on_error) {
          char buff[128];
-         sprintf(buff, "Faild to create font '%s', bold:%s italic:%s", lf.lfFaceName, lf.lfWeight > 500 ? "yes" : "no", lf.lfItalic != FALSE ? "yes" : "no");
+         sprintf(buff, "Faild to create font '%s', bold:%s italic:%s", faceName, lf.lfWeight > 500 ? "yes" : "no", lf.lfItalic != FALSE ? "yes" : "no");
          pd->on_error(ERROR_INVALID_PARAMETER, buff, pd->on_error_user_data);
       }
       return false;

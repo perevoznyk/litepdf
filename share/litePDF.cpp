@@ -150,6 +150,8 @@ TLitePDF::TLitePDF()
    lastErrorMessage = NULL;
    onError = NULL;
    onErrorUserData = NULL;
+   onEvalFontFlag = NULL;
+   onEvalFontFlagUserData = NULL;
 }
 //---------------------------------------------------------------------------
 
@@ -291,16 +293,26 @@ void TLitePDF::ensureLibraryLoaded(const char *_func)
       throw TLitePDFException(ERROR_INVALID_DLL, ttmsg.c_str());
    }
 
-   typedef void (__stdcall * litePDFErrorCB)(unsigned int code, const char *msg, void *user_data);
+   {
+      typedef void (__stdcall * litePDFErrorCB)(unsigned int code, const char *msg, void *user_data);
 
-   InitFunc(void *, litePDF_CreateContext, (litePDFErrorCB on_error, void *on_error_user_data));
+      InitFunc(void *, litePDF_CreateContext, (litePDFErrorCB on_error, void *on_error_user_data));
 
-   context = func (litePDFError, this);
+      context = func (litePDFError, this);
+   }
 
    if (!context) {
       FreeLibrary (lib);
       lib = NULL;
       ThrowMessageIfFail (context != NULL, "Failed to create context");
+   } else {
+      typedef unsigned int (__stdcall * litePDFEvalFontFlagCB)(char *inout_faceName,
+                                                               unsigned int faceNameBufferSize,
+                                                               void *user_data);
+
+      InitFunc(BOOL, litePDF_SetEvalFontFlagCallback, (void *pctx, litePDFEvalFontFlagCB callback, void *callback_user_data));
+
+      ThrowLastErrorIfFail(func (context, litePDFEvalFontFlag, this));
    }
 }
 //---------------------------------------------------------------------------
@@ -543,6 +555,32 @@ void __stdcall TLitePDF::litePDFError(unsigned int code,
    if (lpdf->onError) {
       lpdf->onError(code, msg, lpdf->onErrorUserData);
    }
+}
+//---------------------------------------------------------------------------
+
+unsigned int __stdcall TLitePDF::litePDFEvalFontFlag(char *inout_faceName,
+                                                     unsigned int faceNameBufferSize,
+                                                     void *user_data)
+{
+   const char *_func = "TLitePDF::litePDFEvalFontFlag";
+   TLitePDF *lpdf;
+
+   ThrowIfFail(user_data != NULL);
+
+   lpdf = (TLitePDF *) user_data;
+   if (lpdf->onEvalFontFlag) {
+      return lpdf->onEvalFontFlag(inout_faceName, faceNameBufferSize, lpdf->onEvalFontFlagUserData);
+   }
+
+   return LitePDFFontFlag_Default;
+}
+//---------------------------------------------------------------------------
+
+void TLitePDF::SetEvalFontFlagCallback(TLitePDFEvalFontFlagCB callback,
+                                       void *userData)
+{
+   onEvalFontFlag = callback;
+   onEvalFontFlagUserData = userData;
 }
 //---------------------------------------------------------------------------
 
