@@ -3920,11 +3920,6 @@ static void drawText(struct processData *pd, const ENHMETARECORD *lpEMFR, const 
 
       rcl = emrtext.rcl;
 
-      if (switchY) {
-         rcl.top = rcl.top * (-1);
-         rcl.bottom = rcl.bottom * (-1);
-      }
-
       LogicalUnitToPdf(pd, rcl.left, rcl.top, rclx, rcly);
       LogicalUnitToPdf(pd, rcl.right, rcl.bottom, rclw, rclh);
 
