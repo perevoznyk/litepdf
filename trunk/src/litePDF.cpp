@@ -123,6 +123,9 @@ typedef struct _litePDFContext
    litePDFErrorCB on_error;
    void *on_error_user_data;
 
+   litePDFEvalFontFlagCB on_evalFontFlag;
+   void *on_evalFontFlagUserData;
+
    MEncodingsCache *encodingsCache;
    PdfEncrypt *encrypt;
 
@@ -199,6 +202,8 @@ void * __stdcall LITEPDF_PUBLIC litePDF_CreateContext(litePDFErrorCB on_error,
    ctx->unit = LITEPDF_UNIT_MM;
    ctx->on_error = on_error;
    ctx->on_error_user_data = on_error_user_data;
+   ctx->on_evalFontFlag = NULL;
+   ctx->on_evalFontFlagUserData = NULL;
    ctx->encodingsCache = NULL;
    ctx->encrypt = NULL;
    ctx->streamed_document = NULL;
@@ -340,6 +345,22 @@ unsigned int __stdcall LITEPDF_PUBLIC litePDF_GetUnit(void *pctx)
    litePDFContext *ctx = (litePDFContext *) pctx;
 
    return ctx->unit;
+}
+//---------------------------------------------------------------------------
+
+BOOL __stdcall LITEPDF_PUBLIC litePDF_SetEvalFontFlagCallback (void *pctx,
+                                                               litePDFEvalFontFlagCB callback,
+                                                               void *callback_user_data)
+{
+   if (!pctx)
+      return FALSE;
+
+   litePDFContext *ctx = (litePDFContext *) pctx;
+
+   ctx->on_evalFontFlag = callback;
+   ctx->on_evalFontFlagUserData = callback_user_data;
+
+   return TRUE;
 }
 //---------------------------------------------------------------------------
 
@@ -1699,7 +1720,9 @@ BOOL __stdcall LITEPDF_PUBLIC litePDF_FinishPage(void *pctx,
             ctx->currentDraw.flags |= LITEPDF_DRAW_FLAG_EMBED_FONTS_SUBSET;
          }
 
-         CloseMeta2PdfDC(currentDC, ctx->currentDraw.mm, ctx->currentDraw.px, document, &painter, ctx->encodingsCache, ctx->currentDraw.flags, ctx->on_error, ctx->on_error_user_data);
+         CloseMeta2PdfDC(currentDC, ctx->currentDraw.mm, ctx->currentDraw.px, document, &painter, ctx->encodingsCache, ctx->currentDraw.flags,
+            ctx->on_error, ctx->on_error_user_data,
+            ctx->on_evalFontFlag, ctx->on_evalFontFlagUserData);
 
          painter.FinishPage();
       } 
@@ -1865,7 +1888,9 @@ unsigned int __stdcall LITEPDF_PUBLIC litePDF_FinishResource(void *pctx,
             ctx->currentDraw.flags |= LITEPDF_DRAW_FLAG_EMBED_FONTS_SUBSET;
          }
 
-         CloseMeta2PdfDC(currentDC, ctx->currentDraw.mm, ctx->currentDraw.px, document, &painter, ctx->encodingsCache, ctx->currentDraw.flags, ctx->on_error, ctx->on_error_user_data);
+         CloseMeta2PdfDC(currentDC, ctx->currentDraw.mm, ctx->currentDraw.px, document, &painter, ctx->encodingsCache, ctx->currentDraw.flags,
+            ctx->on_error, ctx->on_error_user_data,
+            ctx->on_evalFontFlag, ctx->on_evalFontFlagUserData);
 
          painter.FinishPage();
 
@@ -6198,7 +6223,9 @@ BOOL __stdcall LITEPDF_PUBLIC litePDF_DrawDebugPage(void *pctx,
    if (canPaint) {
       try {
          painter.SetPage(pPage);
-         PlayMeta2Pdf(emf, page_mm, page_px, document, canPaint ? &painter : NULL, ctx->encodingsCache, LITEPDF_DRAW_FLAG_NONE, ctx->on_error, ctx->on_error_user_data);
+         PlayMeta2Pdf(emf, page_mm, page_px, document, canPaint ? &painter : NULL, ctx->encodingsCache, LITEPDF_DRAW_FLAG_NONE,
+            ctx->on_error, ctx->on_error_user_data,
+            ctx->on_evalFontFlag, ctx->on_evalFontFlagUserData);
       } catch (const PdfError &error) {
          handleException(ctx, "litePDF_DrawDebugPage", error);
       }

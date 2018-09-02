@@ -41,6 +41,13 @@ typedef void (__stdcall * Meta2PdfErrorCB)(unsigned int code, const char *msg, F
    @param user_data User data provided in @ref CloseMeta2PdfDC.
 */
 
+typedef unsigned int (__stdcall * Meta2PdfEvalFontFlagCB)(char *inout_faceName,
+                                                          unsigned int faceNameBufferSize,
+                                                          void *user_data);
+/**<
+   See @ref litePDFEvalFontFlagCB.
+*/
+
 HDC CreateMeta2PdfDC(const DBLSIZE &page_mm);
 /**<
    Creates a device context of a size page_size to which is drawn image
@@ -59,7 +66,9 @@ void CloseMeta2PdfDC(HDC hDC,
                      litePDF::MEncodingsCache *encodingsCache,
                      unsigned int drawFlags,
                      Meta2PdfErrorCB on_error,
-                     FAR void *on_error_user_data);
+                     FAR void *on_error_user_data,
+                     Meta2PdfEvalFontFlagCB on_evalFontFlag,
+                     FAR void *on_evalFontFlagUserData);
 /**<
    Finishes drawing to a device context and converts it to a PDF.
    on_error callback is used to inform about conversion errors,
@@ -73,7 +82,9 @@ void CloseMeta2PdfDC(HDC hDC,
    @param encodingsCache Cache of PDF encodings for builtin fonts
    @param drawFlags bit-OR of LITEPDF_DRAW_FLAG_... constants
    @param on_error Callback to use for conversion error messages.
-   @param on_error_user_data User data passed to on_error callback.
+   @param on_error_user_data User data passed to @a on_error callback.
+   @param on_evalFontFlag A @ref Meta2PdfEvalFontFlagCB callback to evaluate font flags.
+   @param on_evalFontFlagUserData: User data passed to @a on_evalFontFlag.
    
    @note After this call the device context and all its memory is freed.
 */
@@ -94,7 +105,9 @@ void PlayMeta2Pdf(HENHMETAFILE emf,
                   litePDF::MEncodingsCache *encodingsCache,
                   unsigned int drawFlags,
                   Meta2PdfErrorCB on_error,
-                  FAR void *on_error_user_data);
+                  FAR void *on_error_user_data,
+                  Meta2PdfEvalFontFlagCB on_evalFontFlag,
+                  FAR void *on_evalFontFlagUserData);
 /**<
    Gets saved EnhancedMetaFile and converts it ta PDF.
    on_error callback is used to inform about conversion errors,
@@ -108,7 +121,11 @@ void PlayMeta2Pdf(HENHMETAFILE emf,
    @param encodingsCache Cache of PDF encodings for builtin fonts
    @param drawFlags bit-OR of LITEPDF_DRAW_FLAG_... constants
    @param on_error Callback to use for conversion error messages.
-   @param on_error_user_data User data passed to on_error callback.
+   @param on_error_user_data User data passed to @a on_error callback.
+   @param on_evalFontFlag A @ref Meta2PdfEvalFontFlagCB callback to evaluate font flags.
+   @param on_evalFontFlagUserData: User data passed to @a on_evalFontFlag.
+   @param on_evalFontFlag A @ref Meta2PdfEvalFontFlagCB callback to evaluate font flags.
+   @param on_evalFontFlagUserData: User data passed to @a on_evalFontFlag.
 */
 
 #endif /* META2PDF_H */

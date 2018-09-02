@@ -109,6 +109,26 @@ than it is supposed to be (considered double precision error is around 1e-9).
 
 typedef void (__stdcall *MLitePDFErrorEvent)(unsigned int code, const char *msg, void *user_data);
 
+typedef unsigned int (__stdcall *TLitePDFEvalFontFlagCB)(char *inout_faceName,
+                                                         unsigned int faceNameBufferSize,
+                                                         void *user_data);
+/**<
+   A callback to evaluate what to do with the specified font. The function
+   can be also used to rename the font, without changing the font flag.
+   The size of the @a inout_faceName buffer is @a faceNameBufferSize and when
+   renaming it, the written value should not be longer than @a faceNameBufferSize,
+   including the nul-terminating character.
+
+   The returned value for one font name should be consistent. It's not possible to
+   for example once request complete font embedding and the other time to request
+   no embedding at all.
+
+   @param inout_faceName [in/out] The font face name to evaluate the flag for.
+   @param faceNameBufferSize Size of the @a inout_faceName buffer.
+   @param user_data User data provided in @ref TLitePDF::SetEvalFontFlagCallback.
+   @return One of @ref TLitePDFFontFlags.
+*/
+
 typedef void (__stdcall *TLitePDFAppendSignatureDataFunc)(const char *bytes, unsigned int bytes_len, void *user_data);
 /**<
    The function is used within @ref TLitePDF::SaveToFileWithSignManual and @ref TLitePDF::SaveToDataWithSignManual.
@@ -171,6 +191,16 @@ typedef enum {
    LitePDFUnit_100th_inch  = 7, /**< 1/100th of an inch unit; 5" is value 500 */
    LitePDFUnit_1000th_inch = 8  /**< 1/1000th of an inch unit; 5" is value 5000 */
 } TLitePDFUnit;
+
+//---------------------------------------------------------------------------
+
+typedef enum {
+   LitePDFFontFlag_Default       = 0, /**< Use the settings as specified by the draw operation */
+   LitePDFFontFlag_DoNotEmbed    = 1, /**< Do not embed the font */
+   LitePDFFontFlag_EmbedComplete = 2, /**< Embed complete font */
+   LitePDFFontFlag_EmbedSubset   = 3, /**< Embed the font with used characters only */
+   LitePDFFontFlag_Substitute    = 4  /**< Substitute the font with one of the base fonts, if possible */
+} TLitePDFFontFlags;
 
 //---------------------------------------------------------------------------
 
@@ -274,6 +304,8 @@ class TLitePDF
    void *onErrorUserData;
    DWORD lastErrorCode;
    char *lastErrorMessage;
+   TLitePDFEvalFontFlagCB onEvalFontFlag;
+   void *onEvalFontFlagUserData;
 
    FARPROC GetProc(const char *pProcIdent);
    bool checkAPIVersion(unsigned int major,
@@ -286,9 +318,13 @@ class TLitePDF
    void setLastError(DWORD code,
                      const char *msg);
 
-   static void __stdcall litePDFError (unsigned int code,
-                                       const char *msg,
-                                       void *user_data);
+   static void __stdcall litePDFError(unsigned int code,
+                                      const char *msg,
+                                      void *user_data);
+
+   static unsigned int __stdcall litePDFEvalFontFlag(char *inout_faceName,
+                                                     unsigned int faceNameBufferSize,
+                                                     void *user_data);
  public:
    TLitePDF();
    /**<
@@ -449,6 +485,17 @@ class TLitePDF
       @returns The @a unitValue converted to inches.
 
       @see GetUnit, InchToUnit, MMToUnit, UnitToMM, UnitToInchEx
+   */
+
+   void SetEvalFontFlagCallback(TLitePDFEvalFontFlagCB callback,
+                                void *userData);
+   /**<
+      Sets a callback to evaluate what to do with a font. The @a callback can
+      be NULL, to unset any previously set value. See @ref TLitePDFEvalFontFlagCB
+      for more information about the @a callback parameters and what it can do.
+
+      @param callback A @ref TLitePDFEvalFontFlagCB callback to set, or NULL.
+      @param userData A user data to pass to @a callback when called.
    */
 
    void PrepareEncryption(const char *userPassword,

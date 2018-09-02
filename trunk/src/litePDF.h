@@ -152,6 +152,46 @@ unsigned int __stdcall LITEPDF_PUBLIC litePDF_GetUnit(void *pctx);
    @see @ref units, litePDF_SetUnit
 */
 
+#define LITEPDF_FONT_FLAG_DEFAULT         0 /**< Use the settings as specified by the draw operation */
+#define LITEPDF_FONT_FLAG_DO_NOT_EMBED    1 /**< Do not embed the font */
+#define LITEPDF_FONT_FLAG_EMBED_COMPLETE  2 /**< Embed complete font */
+#define LITEPDF_FONT_FLAG_EMBED_SUBSET    3 /**< Embed the font with used characters only */
+#define LITEPDF_FONT_FLAG_SUBSTITUTE      4 /**< Substitute the font with one of the base fonts, if possible */
+
+typedef unsigned int (__stdcall * litePDFEvalFontFlagCB)(char *inout_faceName,
+                                                         unsigned int faceNameBufferSize,
+                                                         void *user_data);
+/**<
+   A callback to evaluate what to do with the specified font. The function
+   can be also used to rename the font, without changing the font flag.
+   The size of the @a inout_faceName buffer is @a faceNameBufferSize and when
+   renaming it, the written value should not be longer than @a faceNameBufferSize,
+   including the nul-terminating character.
+
+   The returned value for one font name should be consistent. It's not possible to
+   for example once request complete font embedding and the other time to request
+   no embedding at all.
+
+   @param inout_faceName [in/out] The font face name to evaluate the flag for.
+   @param faceNameBufferSize Size of the @a inout_faceName buffer.
+   @param user_data User data provided in @ref litePDF_SetEvalFontFlagCallback.
+   @return One of @ref LITEPDF_FONT_FLAG_DEFAULT, @ref LITEPDF_FONT_FLAG_DO_NOT_EMBED, @ref LITEPDF_FONT_FLAG_EMBED_COMPLETE, @ref LITEPDF_FONT_FLAG_EMBED_SUBSET, @ref LITEPDF_FONT_FLAG_SUBSTITUTE.
+*/
+
+BOOL __stdcall LITEPDF_PUBLIC litePDF_SetEvalFontFlagCallback (void *pctx,
+                                                               litePDFEvalFontFlagCB callback,
+                                                               void *callback_user_data);
+/**<
+   Sets a callback to evaluate what to do with a font. The @a callback can
+   be NULL, to unset any previously set value. See @ref litePDFEvalFontFlagCB
+   for more information about the @a callback parameters and what it can do.
+
+   @param pctx a litePDF context, previously created with @ref litePDF_CreateContext.
+   @param callback A @ref litePDFEvalFontFlagCB callback to set, or NULL.
+   @param callback_user_data A user data to pass to @a callback when called.
+   @return Whether succeeded.
+*/
+
 #define LITEPDF_ENCRYPT_PERMISSION_NONE         0x0         /**< Nothing from the rest is allowed */
 #define LITEPDF_ENCRYPT_PERMISSION_PRINT        0x00000004  /**< Allow printing the document */
 #define LITEPDF_ENCRYPT_PERMISSION_EDIT         0x00000008  /**< Allow modifying the document besides annotations, form fields or changing pages */
