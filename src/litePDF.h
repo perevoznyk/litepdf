@@ -473,6 +473,7 @@ BOOL __stdcall LITEPDF_PUBLIC litePDF_SetPageRotation(void *pctx,
 #define LITEPDF_DRAW_FLAG_EMBED_FONTS_SUBSET         (1 << 1) /**< Embed only subset of the fonts, aka used letters; this flag is used before @ref LITEPDF_DRAW_FLAG_EMBED_FONTS_COMPLETE; @see LITEPDF_DRAW_FLAG_EMBED_FONTS_NONE */
 #define LITEPDF_DRAW_FLAG_SUBSTITUTE_FONTS           (1 << 2) /**< Substitute fonts with base PDF fonts, if possible */
 #define LITEPDF_DRAW_FLAG_COMPRESS_IMAGES_WITH_JPEG  (1 << 3) /**< Compress images with JPEG compression, to get smaller PDF document; this is used only for RGB images */
+#define LITEPDF_DRAW_FLAG_RESET_GRAPHICS_STATE       (1 << 5) /**< Try to reset graphics state before appending new content to the page. This covers leftover saved states and the transformation matrix */
 
 HDC __stdcall LITEPDF_PUBLIC litePDF_AddPage(void *pctx,
                                              unsigned int width_u,
@@ -1168,7 +1169,7 @@ BOOL __stdcall LITEPDF_PUBLIC litePDF_SetSignatureAppearance(void *pctx,
    @param index Which signature to use; counts from 0. This might be less
       than @ref litePDF_GetSignatureCount.
    @param appearanceType One of the @ref LITEPDF_APPEARANCE_NORMAL, @ref LITEPDF_APPEARANCE_ROLLOVER
-      and @ref LITEPDF_APPEARANCE_DOWN contacts. At least the @ref LITEPDF_APPEARANCE_NORMAL type
+      and @ref LITEPDF_APPEARANCE_DOWN constants. At least the @ref LITEPDF_APPEARANCE_NORMAL type
       should be set, if the appearance of the signature is requested.
    @param resourceID An existing resource ID of the annotation content, as shown to the user.
    @param offsetX_u X-offset of the resource inside the annotation of the signature, in the current unit.
@@ -1178,6 +1179,29 @@ BOOL __stdcall LITEPDF_PUBLIC litePDF_SetSignatureAppearance(void *pctx,
    @note The resource position offset is from [left, top] corner of the annotation rectangle.
 
    @see litePDF_GetUnit, litePDF_AddResource, litePDF_GetSignatureCount, litePDF_CreateSignature
+*/
+
+#define LITEPDF_CERTIFICATION_PERMISSION_NO_PERMS     (1) /**< No changes to the document are permitted; any change to the document invalidates the signature. */
+#define LITEPDF_CERTIFICATION_PERMISSION_FORM_FILL    (2) /**< Permitted changes are filling in forms, instantiating page templates, and signing; other changes invalidate the signature. */
+#define LITEPDF_CERTIFICATION_PERMISSION_ANNOTATIONS  (3) /**< Permitted changes are the same as for @ref LITEPDF_CERTIFICATION_PERMISSION_FORM_FILL, as well as annotation creation, deletion, and modification; other changes invalidate the signature. */
+
+BOOL __stdcall LITEPDF_PUBLIC litePDF_SetSignatureCertification(void *pctx,
+                                                                unsigned int index,
+                                                                unsigned int permission);
+/**<
+   Sets the signature certification. This is used to detect modifications relative to a signature
+   field that is signed by the author of a document (the person applying the first signature). A document
+   can contain only one signature field that contains the access permissions; it should be the first
+   signed field in the document. It enables the author to specify what changes are permitted to be
+   made the document and what changes invalidate the author’s signature.
+
+   @param pctx a litePDF context, previously created with @ref litePDF_CreateContext.
+   @param index Which signature to use; counts from 0. This might be less
+      than @ref litePDF_GetSignatureCount.
+   @param permission One of the @ref LITEPDF_CERTIFICATION_PERMISSION_NO_PERMS, @ref LITEPDF_CERTIFICATION_PERMISSION_FORM_FILL
+      and @ref LITEPDF_CERTIFICATION_PERMISSION_ANNOTATIONS constants.
+
+   @see litePDF_CreateSignature
 */
 
 BOOL __stdcall LITEPDF_PUBLIC litePDF_SetSignatureSize(void *pctx,
@@ -1615,6 +1639,41 @@ BOOL __stdcall LITEPDF_PUBLIC litePDF_CreateLinkAnnotation(void *pctx,
    @return Whether succeeded.
 
    @see litePDF_GetUnit, litePDF_GetPageCount, litePDF_AddResource, litePDF_CreateBookmarkRoot
+*/
+
+BOOL __stdcall LITEPDF_PUBLIC litePDF_CreateURIAnnotation(void *pctx,
+                                                          unsigned int annotationPageIndex,
+                                                          int annotationX_u,
+                                                          int annotationY_u,
+                                                          int annotationWidth_u,
+                                                          int annotationHeight_u,
+                                                          unsigned int annotationFlags,
+                                                          unsigned int annotationResourceID,
+                                                          const char *destinationURI,
+                                                          const wchar_t *destinationDescription);
+/**<
+   Creates a URI annotation at the given page and position, which will reference the given
+   destination URI. The context should hold a memory-based document.
+   Note, the URI annotation can be created only when the document is not drawing, to
+   have all the document pages available.
+
+   @param pctx a litePDF context, previously created with @ref litePDF_CreateContext,
+      to which add the URI annotation.
+   @param annotationPageIndex Page index where to place the URI annotation.
+   @param annotationX_u X-origin of the annotation on the page, in the current unit.
+   @param annotationY_u Y-origin of the annotation on the page, in the current unit.
+   @param annotationWidth_u Width of the annotation on the page, in the current unit.
+   @param annotationHeight_u Height of the annotation on the page, in the current unit.
+   @param annotationFlags Bit-or of LITEPDF_ANNOTATION_FLAG_ flags.
+   @param annotationResourceID Optional resource ID of the annotation content, as shown
+      to the user. 0 means do not add additional visualization on the page, but the annotation
+      can be still clicked.
+   @param destinationURI The URI the annotation points to.
+   @param destinationDescription Optional destination description, which can be used
+      for accessibility reasons by the viewer.
+   @return Whether succeeded.
+
+   @see litePDF_GetUnit, litePDF_GetPageCount, litePDF_AddResource
 */
 
 #define LITEPDF_BOOKMARK_FLAG_NONE      0x0000 /**< Default bookmark flags */

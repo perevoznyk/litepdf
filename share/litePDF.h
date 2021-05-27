@@ -214,7 +214,8 @@ typedef enum {
    LitePDFDrawFlag_EmbedFontsComplete     = (1 << 0), /**< Embed complete fonts into resulting PDF; @see LitePDFDrawFlag_EmbedFontsSubset, LitePDFDrawFlag_EmbedFontsNone */
    LitePDFDrawFlag_EmbedFontsSubset       = (1 << 1), /**< Embed only subset of the fonts, aka used letters; this flag is used before @ref LitePDFDrawFlag_EmbedFontsComplete; @see LitePDFDrawFlag_EmbedFontsNone */
    LitePDFDrawFlag_SubstituteFonts        = (1 << 2), /**< Substitute fonts with base PDF fonts, if possible */
-   LitePDFDrawFlag_CompressImagesWithJPEG = (1 << 3)  /**< Compress images with JPEG compression, to get smaller PDF document; this is used only for RGB images */
+   LitePDFDrawFlag_CompressImagesWithJPEG = (1 << 3), /**< Compress images with JPEG compression, to get smaller PDF document; this is used only for RGB images */
+   LitePDFDrawFlag_ResetGraphicsState     = (1 << 5)  /**< Try to reset graphics state before appending new content to the page. This covers leftover saved states and the transformation matrix */
 } TLitePDFDrawFlags;
 
 //---------------------------------------------------------------------------
@@ -280,9 +281,9 @@ typedef enum {
 //---------------------------------------------------------------------------
 
 typedef enum {
-   LitePDFAppearance_Normal =   0, /**< Normal appearance */
+   LitePDFAppearance_Normal   = 0, /**< Normal appearance */
    LitePDFAppearance_Rollover = 1, /**< Rollover appearance; the default is the normal appearance */
-   LitePDFAppearance_Down =     2  /**< Down appearance; the default is the normal appearance */
+   LitePDFAppearance_Down     = 2  /**< Down appearance; the default is the normal appearance */
 } TLitePDFAppearance;
 
 //---------------------------------------------------------------------------
@@ -292,6 +293,14 @@ typedef enum {
    LitePDFBookmarkFlag_Italic         = 0x0001, /**< Show bookmark title as an italic text */
    LitePDFBookmarkFlag_Bold           = 0x0002  /**< Show bookmark title as a bold text */
 } TLitePDFBookmarkFlags;
+
+//---------------------------------------------------------------------------
+
+typedef enum {
+   LitePDFCertificationPermission_NoPerms     = 1, /**< No changes to the document are permitted; any change to the document invalidates the signature. */
+   LitePDFCertificationPermission_FormFill    = 2, /**< Permitted changes are filling in forms, instantiating page templates, and signing; other changes invalidate the signature. */
+   LitePDFCertificationPermission_Annotations = 3  /**< Permitted changes are the same as for @ref LitePDFCertificationPermission_FormFill, as well as annotation creation, deletion, and modification; other changes invalidate the signature. */
+} TLitePDFCertificationPermission;
 
 //---------------------------------------------------------------------------
 
@@ -1241,7 +1250,7 @@ class TLitePDF
       @param index Which signature to use; counts from 0. This might be less
          than @ref GetSignatureCount.
       @param appearanceType One of the @ref LitePDFAppearance_Normal, @ref LitePDFAppearance_Rollover
-         and @ref LitePDFAppearance_Down contacts. At least the @ref LitePDFAppearance_Normal type
+         and @ref LitePDFAppearance_Down constants. At least the @ref LitePDFAppearance_Normal type
          should be set, if the appearance of the signature is requested.
       @param resourceID An existing resource ID of the annotation content, as shown to the user.
       @param offsetX_u X-offset of the resource inside the annotation of the signature, in the current unit.
@@ -1250,6 +1259,23 @@ class TLitePDF
       @note The resource position offset is from [left, top] corner of the annotation rectangle.
 
       @see GetUnit, AddResource, GetSignatureCount, CreateSignature
+   */
+
+   void SetSignatureCertification(unsigned int index,
+                                  TLitePDFCertificationPermission permission);
+   /**<
+      Sets the signature certification. This is used to detect modifications relative to a signature
+      field that is signed by the author of a document (the person applying the first signature). A document
+      can contain only one signature field that contains the access permissions; it should be the first
+      signed field in the document. It enables the author to specify what changes are permitted to be
+      made the document and what changes invalidate the author’s signature.
+
+      @param index Which signature to use; counts from 0. This might be less
+         than @ref GetSignatureCount.
+      @param permission One of the @ref LitePDFCertificationPermission_NoPerms, @ref LitePDFCertificationPermission_FormFill and
+         @ref LitePDFCertificationPermission_Annotations constants.
+
+      @see CreateSignature
    */
 
    void SetSignatureSize(unsigned int requestBytes);
@@ -1613,6 +1639,37 @@ class TLitePDF
          for accessibility reasons by the viewer.
 
       @see GetUnit, GetPageCount, AddResource, CreateBookmarkRoot
+   */
+
+   void CreateURIAnnotation(unsigned int annotationPageIndex,
+                            int annotationX_u,
+                            int annotationY_u,
+                            int annotationWidth_u,
+                            int annotationHeight_u,
+                            unsigned int annotationFlags,
+                            unsigned int annotationResourceID,
+                            const char *destinationURI,
+                            const wchar_t *destinationDescription);
+   /**<
+      Creates a URI annotation at the given page and position, which will reference the given
+      destination URI. The context should hold a memory-based document.
+      Note, the URI annotation can be created only when the document is not drawing, to
+      have all the document pages available.
+
+      @param annotationPageIndex Page index where to place the URI annotation.
+      @param annotationX_u X-origin of the annotation on the page, in the current unit.
+      @param annotationY_u Y-origin of the annotation on the page, in the current unit.
+      @param annotationWidth_u Width of the annotation on the page, in the current unit.
+      @param annotationHeight_u Height of the annotation on the page, in the current unit.
+      @param annotationFlags Bit-or of @ref TLitePDFAnnotationFlags flags.
+      @param annotationResourceID Optional resource ID of the annotation content, as shown
+         to the user. 0 means do not add additional visualization on the page, but the annotation
+         can be still clicked.
+      @param destinationURI The URI the annotation points to.
+      @param destinationDescription Optional destination description, which can be used
+         for accessibility reasons by the viewer.
+
+      @see GetUnit, GetPageCount, AddResource
    */
 
    unsigned int CreateBookmarkRoot(const wchar_t *title,

@@ -3071,6 +3071,11 @@ class MTmpSigField : public PdfField
       PdfField(PoDoFo::ePdfField_Signature, pPage, rRect, pDoc)
    {
    }
+
+   void SetFlags(pdf_uint32 uiFlags)
+   {
+      this->GetFieldObject()->GetDictionary().AddKey( "F", PdfVariant( static_cast<pdf_int64>(uiFlags) ) );
+   }
 };
 
 BOOL __stdcall LITEPDF_PUBLIC litePDF_CreateSignature(void *pctx,
@@ -3216,6 +3221,7 @@ BOOL __stdcall LITEPDF_PUBLIC litePDF_CreateSignature(void *pctx,
 
       MTmpSigField signField(page, onPageRect, document);
       signField.SetFieldName(signFieldName);
+      signField.SetFlags(annotationFlags);
 
       // re-enum existing signature fields in the document
       unsigned int ii, nSigFields = GetSignatureAnnotationsCount(ctx, document, true), addedIdx;
@@ -4291,6 +4297,102 @@ BOOL __stdcall LITEPDF_PUBLIC litePDF_SetSignatureAppearance(void *pctx,
 
    DeletePtr(sigField);
    DeletePtr(annotation);
+
+   return res;
+}
+//---------------------------------------------------------------------------
+
+BOOL __stdcall LITEPDF_PUBLIC litePDF_SetSignatureCertification(void *pctx,
+                                                                unsigned int index,
+                                                                unsigned int permission)
+{
+   if (!pctx) {
+      return FALSE;
+   }
+
+   litePDFContext *ctx = (litePDFContext *) pctx;
+
+   LITEPDF_RETURN_VAL_IF_FAIL (permission == LITEPDF_CERTIFICATION_PERMISSION_NO_PERMS ||
+                               permission == LITEPDF_CERTIFICATION_PERMISSION_FORM_FILL ||
+                               permission == LITEPDF_CERTIFICATION_PERMISSION_ANNOTATIONS, "litePDF_SetSignatureCertification", FALSE);
+
+   if (ctx->documentSaved) {
+      if (ctx->on_error) {
+         ctx->on_error(ERROR_INVALID_OPERATION, "litePDF_SetSignatureCertification: Document was already saved", ctx->on_error_user_data);
+      }
+      return FALSE;
+   }
+
+   PdfAnnotation *annotation = NULL;
+   PdfSignatureField *sigField = NULL;
+   BOOL res = FALSE;
+
+   try {
+      PdfMemDocument *document = NULL;
+
+      if (ctx->streamed_document) {
+         if (ctx->on_error) {
+            ctx->on_error(ERROR_INVALID_HANDLE, "litePDF_SetSignatureCertification: Can be used only with memory-based documents", ctx->on_error_user_data);
+         }
+
+         return FALSE;
+      } else if (ctx->mem_document) {
+         document = ctx->mem_document;
+      } else {
+         if (ctx->on_error) {
+            ctx->on_error(ERROR_INVALID_HANDLE, "litePDF_SetSignatureCertification: No document is opened", ctx->on_error_user_data);
+         }
+
+         return FALSE;
+      }
+
+      unsigned int errorCode = 0;
+
+      sigField = GetSignatureField(ctx, document, index, true, &annotation, &errorCode);
+      if (sigField) {
+         try {
+            PdfSignatureField::EPdfCertPermission perm = PdfSignatureField::ePdfCertPermission_FormFill;
+
+            switch (permission) {
+            case LITEPDF_CERTIFICATION_PERMISSION_NO_PERMS:
+               perm = PdfSignatureField::ePdfCertPermission_NoPerms;
+               break;
+            case LITEPDF_CERTIFICATION_PERMISSION_FORM_FILL:
+               perm = PdfSignatureField::ePdfCertPermission_FormFill;
+               break;
+            case LITEPDF_CERTIFICATION_PERMISSION_ANNOTATIONS:
+               perm = PdfSignatureField::ePdfCertPermission_Annotations;
+               break;
+            }
+
+            sigField->EnsureSignatureObject();
+            sigField->AddCertificationReference(document->GetCatalog(), perm);
+
+            res = TRUE;
+         } catch(const PdfError &error) {
+            handleException(ctx, "litePDF_SetSignatureCertification", error);
+
+            DeletePtr(sigField);
+            DeletePtr(annotation);
+
+            return FALSE;
+         }
+      } else {
+         DeletePtr(sigField);
+         DeletePtr(annotation);
+
+         LITEPDF_RETURN_VAL_IF_FAIL (ClaimGetSignatureFieldError(ctx, errorCode, "litePDF_SetSignatureCertification"), "litePDF_SetSignatureCertification", FALSE);
+      }
+   } catch (const PdfError &error) {
+      handleException(ctx, "litePDF_SetSignatureCertification", error);
+
+      DeletePtr(sigField);
+      DeletePtr(annotation);
+
+      return FALSE;
+   }
+
+   DeletePtr(sigField);
 
    return res;
 }
@@ -6369,6 +6471,133 @@ BOOL __stdcall LITEPDF_PUBLIC litePDF_CreateLinkAnnotation(void *pctx,
       annot.SetDestination(dest);
    } catch (const PdfError &error) {
       handleException(ctx, "litePDF_CreateLinkAnnotation", error);
+      return FALSE;
+   }
+
+   return TRUE;
+}
+//---------------------------------------------------------------------------
+
+BOOL __stdcall LITEPDF_PUBLIC litePDF_CreateURIAnnotation(void *pctx,
+                                                          unsigned int annotationPageIndex,
+                                                          int annotationX_u,
+                                                          int annotationY_u,
+                                                          int annotationWidth_u,
+                                                          int annotationHeight_u,
+                                                          unsigned int annotationFlags,
+                                                          unsigned int annotationResourceID,
+                                                          const char *destinationURI,
+                                                          const wchar_t *destinationDescription)
+{
+   if (!pctx) {
+      return FALSE;
+   }
+
+   litePDFContext *ctx = (litePDFContext *) pctx;
+
+   if (!destinationURI) {
+      if (ctx->on_error) {
+         ctx->on_error(ERROR_INVALID_PARAMETER, "litePDF_CreateURIAnnotation: Destination URI cannot be NULL", ctx->on_error_user_data);
+      }
+
+      return FALSE;
+   }
+
+   if (ctx->documentSaved) {
+      if (ctx->on_error) {
+         ctx->on_error(ERROR_INVALID_OPERATION, "litePDF_CreateURIAnnotation: Document was already saved", ctx->on_error_user_data);
+      }
+      return FALSE;
+   }
+
+   try {
+      if (ctx->currentDraw.hdc) {
+         if (ctx->on_error) {
+            ctx->on_error(ERROR_IO_PENDING, "litePDF_CreateURIAnnotation: A draw operation is in progress", ctx->on_error_user_data);
+         }
+
+         return FALSE;
+      }
+
+      if (!ctx->streamed_document && !ctx->mem_document) {
+         if (ctx->on_error) {
+            ctx->on_error(ERROR_INVALID_HANDLE, "litePDF_CreateURIAnnotation: No document is opened", ctx->on_error_user_data);
+         }
+
+         return FALSE;
+      }
+
+      if (!ctx->mem_document) {
+         if (ctx->on_error) {
+            ctx->on_error(ERROR_INVALID_HANDLE, "litePDF_CreateURIAnnotation: Can be called on memory-based documents only", ctx->on_error_user_data);
+         }
+
+         return FALSE;
+      }
+
+      if (annotationPageIndex >= ctx->mem_document->GetPageCount()) {
+         if (ctx->on_error) {
+            ctx->on_error(ERROR_INVALID_INDEX, "litePDF_CreateURIAnnotation: Annotation page index is out of range", ctx->on_error_user_data);
+         }
+
+         return FALSE;
+      }
+
+      PdfPage *page = ctx->mem_document->GetPage(annotationPageIndex);
+      if (!page) {
+         if (ctx->on_error) {
+            ctx->on_error(ERROR_INVALID_HANDLE, "litePDF_CreateURIAnnotation: Cannot find page for annotation", ctx->on_error_user_data);
+         }
+         return FALSE;
+      }
+
+      PdfRect onPageRect(page->GetPageSize().GetLeft() + LITEPDF_MM_TO_POINTS(unitToMM(ctx->unit, annotationX_u)),
+                         page->GetPageSize().GetBottom() + page->GetPageSize().GetHeight() - LITEPDF_MM_TO_POINTS(unitToMM(ctx->unit, annotationY_u)),
+                         LITEPDF_MM_TO_POINTS(unitToMM(ctx->unit, annotationWidth_u)),
+                         -LITEPDF_MM_TO_POINTS(unitToMM(ctx->unit, annotationHeight_u)));
+
+      PdfObject *annots = page->GetOwnAnnotationsArray(true, ctx->mem_document);
+
+      if (annotationResourceID > 0) {
+         if (annotationResourceID - 1 >= (unsigned int) ctx->resources.size()) {
+            if (ctx->on_error) {
+               ctx->on_error(ERROR_INVALID_INDEX, "litePDF_CreateURIAnnotation: Annotation resource ID is out of range", ctx->on_error_user_data);
+            }
+
+            return FALSE;
+         }
+
+         PdfAnnotation annotLine(page, ePdfAnnotation_Line, onPageRect, &ctx->mem_document->GetObjects());
+         PdfDictionary dict;
+         dict.AddKey("N", ctx->resources[annotationResourceID - 1].objectReference);
+         annotLine.GetObject()->GetDictionary().AddKey("AP", dict);
+         annotLine.SetBorderStyle(0.0, 0.0, 0.0);
+         annotLine.SetFlags(annotationFlags);
+
+         if (annots) {
+            annots->GetArray().push_back(annotLine.GetObject()->Reference());
+         }
+      }
+
+      PdfAnnotation annot(page, ePdfAnnotation_Link, onPageRect, &ctx->mem_document->GetObjects());
+      if (destinationDescription && *destinationDescription) {
+         PdfString str;
+         str.setFromWchar_t ((const wchar_t *) destinationDescription);
+
+         annot.SetContents(str);
+      }
+      annot.SetBorderStyle(0.0, 0.0, 0.0);
+      annot.SetFlags(annotationFlags);
+
+      if (annots) {
+         annots->GetArray().push_back(annot.GetObject()->Reference());
+      }
+
+      PdfAction action(ePdfAction_URI, ctx->mem_document);
+      action.SetURI(destinationURI);
+      annot.SetAction(action);
+   } catch (const PdfError &error) {
+      handleException(ctx, "litePDF_CreateURIAnnotation", error);
       return FALSE;
    }
 

@@ -1551,6 +1551,33 @@ void TLitePDF::SetSignatureAppearance(unsigned int index,
 }
 //---------------------------------------------------------------------------
 
+void TLitePDF::SetSignatureCertification(unsigned int index,
+                                         TLitePDFCertificationPermission permission)
+{
+   const char *_func = "TLitePDF::SetSignatureCertification";
+
+   ensureLibraryLoaded(_func);
+
+   ThrowIfFail(lib != NULL);
+
+   InitFunc(BOOL, litePDF_SetSignatureCertification, (void *pctx,
+                                                      unsigned int index,
+                                                      unsigned int permission));
+
+   unsigned int perm;
+
+   if (permission == LitePDFCertificationPermission_NoPerms) {
+      perm = 1;
+   } else if (permission == LitePDFCertificationPermission_FormFill) {
+      perm = 2;
+   } else { // LitePDFCertificationPermission_Annotations
+      perm = 3;
+   }
+
+   ThrowLastErrorIfFail(func(context, index, perm));
+}
+//---------------------------------------------------------------------------
+
 void TLitePDF::SetSignatureSize(unsigned int requestBytes)
 {
    const char *_func = "TLitePDF::SetSignatureSize";
@@ -2014,6 +2041,46 @@ void TLitePDF::CreateLinkAnnotation(unsigned int annotationPageIndex,
                              destinationPageIndex,
                              destinationX_u,
                              destinationY_u,
+                             destinationDescription));
+}
+//---------------------------------------------------------------------------
+
+void TLitePDF::CreateURIAnnotation(unsigned int annotationPageIndex,
+                                   int annotationX_u,
+                                   int annotationY_u,
+                                   int annotationWidth_u,
+                                   int annotationHeight_u,
+                                   unsigned int annotationFlags,
+                                   unsigned int annotationResourceID,
+                                   const char *destinationURI,
+                                   const wchar_t *destinationDescription)
+{
+   const char *_func = "TLitePDF::CreateURIAnnotation";
+
+   ensureLibraryLoaded(_func);
+
+   ThrowIfFail(lib != NULL);
+
+   InitFunc(BOOL, litePDF_CreateURIAnnotation, (void *pctx,
+                                                unsigned int annotationPageIndex,
+                                                int annotationX_u,
+                                                int annotationY_u,
+                                                int annotationWidth_u,
+                                                int annotationHeight_u,
+                                                unsigned int annotationFlags,
+                                                unsigned int annotationResourceID,
+                                                const char *destinationURI,
+                                                const wchar_t *destinationDescription));
+
+   ThrowLastErrorIfFail(func(context,
+                             annotationPageIndex,
+                             annotationX_u,
+                             annotationY_u,
+                             annotationWidth_u,
+                             annotationHeight_u,
+                             annotationFlags,
+                             annotationResourceID,
+                             destinationURI,
                              destinationDescription));
 }
 //---------------------------------------------------------------------------

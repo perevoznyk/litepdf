@@ -28,6 +28,7 @@
 
 #include <winsock2.h>
 #include <windows.h>
+#include <stack>
 
 #include <stdio.h>
 #include <math.h>
@@ -183,6 +184,12 @@ struct dcState
    bool worldMatrixValid; // whether it's used at all
    bool worldMatrixApplied;
    DWorldMatrix worldMatrix;
+
+   // only for isotropic/anisotropic map modes
+   POINT windowOrg;
+   SIZE windowExt;
+   POINT viewportOrg;
+   SIZE viewportExt;
 };
 
 struct processData
@@ -201,12 +208,6 @@ struct processData
    unsigned int drawFlags;
 
    struct dcState currentDCState;
-
-   // only for isotropic/anisotropic map modes
-   POINT windowOrg;
-   SIZE windowExt;
-   POINT viewportOrg;
-   SIZE viewportExt;
 
    bool buildingPath;
 
@@ -328,6 +329,102 @@ void PlayMeta2Pdf(HENHMETAFILE emf,
          return;
       }
 
+      if ((drawFlags & LITEPDF_DRAW_FLAG_RESET_GRAPHICS_STATE) != 0 && painter->GetPage()) {
+         try {
+            PdfContentsTokenizer tokenizer(painter->GetPage());
+            size_t gsSaveStackSize = 0;
+            const char *pszToken = NULL;
+            PdfVariant var;
+            EPdfContentsType eType;
+            std::string str;
+            std::stack<PdfVariant> stack;
+            bool cmChanged = false;
+            double cm[6] = { 1.0, 0.0, 0.0, 1.0, 0.0, 0.0 };
+
+            while (tokenizer.ReadNext(eType, pszToken, var)) {
+               if (eType == ePdfContentsType_Keyword) {
+                  if (!gsSaveStackSize && pszToken && strcmp(pszToken, "cm") == 0) {
+                     if (stack.size() == 6) {
+                        double aa, bb, cc, dd, ee, ff;
+                        ff = stack.top().GetReal();
+                        stack.pop();
+                        ee = stack.top().GetReal();
+                        stack.pop();
+                        dd = stack.top().GetReal();
+                        stack.pop();
+                        cc = stack.top().GetReal();
+                        stack.pop();
+                        bb = stack.top().GetReal();
+                        stack.pop();
+                        aa = stack.top().GetReal();
+                        stack.pop();
+
+                        cm[0] = (cm[0] * aa) + (cm[1] * cc);
+                        cm[1] = (cm[0] * bb) + (cm[1] * dd);
+                        cm[2] = (cm[2] * aa) + (cm[3] * cc);
+                        cm[3] = (cm[2] * bb) + (cm[3] * dd);
+                        cm[4] = (cm[4] * aa) + (cm[5] * cc) + ee;
+                        cm[5] = (cm[4] * bb) + (cm[5] * dd) + ff;
+
+                        cmChanged = true;
+                     }
+                  } else if (pszToken && strcmp(pszToken, "q") == 0) {
+                     gsSaveStackSize++;
+                  } else if (pszToken && gsSaveStackSize && strcmp(pszToken, "Q") == 0) {
+                     gsSaveStackSize--;
+                  }
+
+                  while (!stack.empty()) {
+                     stack.pop();
+                  }
+               } else if (eType == ePdfContentsType_Variant) {
+                  stack.push(var);
+               } else {
+                  while (!stack.empty()) {
+                     stack.pop();
+                  }
+               }
+            }
+
+            while (gsSaveStackSize) {
+               painter->Restore();
+               gsSaveStackSize--;
+            }
+
+            if (cmChanged) {
+               double det = (cm[0] * cm[3]) + (cm[1] * cm[2]);
+
+               if (det < -1e-9 || det > 1e-9) {
+                  double cc[6];
+                  cc[0] = cm[0];
+                  cc[1] = cm[1];
+                  cc[2] = cm[2];
+                  cc[3] = cm[3];
+                  cc[4] = cm[4];
+                  cc[5] = cm[5];
+
+                  cm[0] = cc[3] / det;
+                  cm[1] = (-1.0 * cc[1]) / det;
+                  cm[2] = (-1.0 * cc[2]) / det;
+                  cm[3] = cc[0] / det;
+                  cm[4] = ((cc[2] * cc[5]) - (cc[3] * cc[4])) / det;
+                  cm[5] = (-1.0 * ((cc[0] * cc[5]) - (cc[1] * cc[4]))) / det;
+
+                  painter->SetTransformationMatrix(cm[0], cm[1], cm[2], cm[3], cm[4], cm[5]);
+               }
+            }
+         } catch(const PdfError &error) {
+            if (on_error) {
+               std::string buff = std::string("Failed to read previous page content, continuing without graphic state reset (error:") + error.ErrorName(error.GetError()) + ")";
+               on_error(ERROR_INVALID_DATA, buff.c_str(), on_error_user_data);
+            }
+         } catch(...) {
+            if (on_error) {
+               on_error(ERROR_INVALID_DATA, "Failed to read previous page content, continuing without graphic state reset", on_error_user_data);
+            }
+         }
+      }
+
       /* Embed font subsets by default, thus readers can show fonts properly */
       if ((drawFlags & (LITEPDF_DRAW_FLAG_EMBED_FONTS_NONE | LITEPDF_DRAW_FLAG_EMBED_FONTS_COMPLETE | LITEPDF_DRAW_FLAG_EMBED_FONTS_SUBSET)) == 0) {
          drawFlags |= LITEPDF_DRAW_FLAG_EMBED_FONTS_SUBSET;
@@ -362,14 +459,14 @@ void PlayMeta2Pdf(HENHMETAFILE emf,
       pd.currentDCState.worldMatrix.eM22 = 1.0;
       pd.currentDCState.worldMatrix.eDx = 0.0;
       pd.currentDCState.worldMatrix.eDy = 0.0;
-      pd.windowOrg.x = 0;
-      pd.windowOrg.y = 0;
-      pd.windowExt.cx = 0;
-      pd.windowExt.cy = 0;
-      pd.viewportOrg.x = 0;
-      pd.viewportOrg.y = 0;
-      pd.viewportExt.cx = 0;
-      pd.viewportExt.cy = 0;
+      pd.currentDCState.windowOrg.x = 0;
+      pd.currentDCState.windowOrg.y = 0;
+      pd.currentDCState.windowExt.cx = 0;
+      pd.currentDCState.windowExt.cy = 0;
+      pd.currentDCState.viewportOrg.x = 0;
+      pd.currentDCState.viewportOrg.y = 0;
+      pd.currentDCState.viewportExt.cx = 0;
+      pd.currentDCState.viewportExt.cy = 0;
       pd.buildingPath = false;
       pd.drawFlags = drawFlags;
       pd.current_posX = 0.0;
@@ -685,8 +782,8 @@ static void LogicalUnitToPdf(struct processData *pd, int luX, int luY, double &p
    }
 
    if (translate && ((pd->currentDCState.iMapMode != MM_ANISOTROPIC && pd->currentDCState.iMapMode != MM_ISOTROPIC) || isText)) {
-      dluX += pd->viewportOrg.x - pd->windowOrg.x;
-      dluY += pd->viewportOrg.y - pd->windowOrg.y;
+      dluX += pd->currentDCState.viewportOrg.x - pd->currentDCState.windowOrg.x;
+      dluY += pd->currentDCState.viewportOrg.y - pd->currentDCState.windowOrg.y;
    }
 
    switch(pd->currentDCState.iMapMode) {
@@ -697,23 +794,23 @@ static void LogicalUnitToPdf(struct processData *pd, int luX, int luY, double &p
       break;
    case MM_ANISOTROPIC:
    case MM_ISOTROPIC:
-      if (pd->windowExt.cx && pd->windowExt.cy && !isText) {
+      if (pd->currentDCState.windowExt.cx && pd->currentDCState.windowExt.cy && !isText) {
          double Wo, Vo, We, Ve;
 
-         Wo = translate ? pd->windowOrg.x : 0;
-         Vo = translate ? pd->viewportOrg.x : 0;
-         We = pd->windowExt.cx;
-         Ve = pd->viewportExt.cx;
+         Wo = translate ? pd->currentDCState.windowOrg.x : 0;
+         Vo = translate ? pd->currentDCState.viewportOrg.x : 0;
+         We = pd->currentDCState.windowExt.cx;
+         Ve = pd->currentDCState.viewportExt.cx;
 
          dluX = ((dluX - Wo) * Ve / We) + Vo;
          /*if (We < 0) {
             dluX = -We - dluX;
          }*/
 
-         Wo = translate ? pd->windowOrg.y : 0;
-         Vo = translate ? pd->viewportOrg.y : 0;
-         We = pd->windowExt.cy;
-         Ve = pd->viewportExt.cy;
+         Wo = translate ? pd->currentDCState.windowOrg.y : 0;
+         Vo = translate ? pd->currentDCState.viewportOrg.y : 0;
+         We = pd->currentDCState.windowExt.cy;
+         Ve = pd->currentDCState.viewportExt.cy;
 
          dluY = ((dluY - Wo) * Ve / We) + Vo;
          /*if (We < 0) {
@@ -1890,9 +1987,9 @@ static bool foreachPixel(struct processData *pd, PdfImage *pdfImage, const RECT 
                      }
                      b = (b / ((double) bmask)) * 255;
                   } else { // hopefully BI_RGB
-                     r = (w & (0x1f << 10)) >> 10;
-                     g = (w & (0x1f <<  5)) >>  5;
-                     b =  w &  0x1f;
+                     r = ((w & (0x1f << 10)) >> 10) * 255 / 0x1f;
+                     g = ((w & (0x1f <<  5)) >>  5) * 255 / 0x1f;
+                     b =  (w &  0x1f) * 255 / 0x1f;
                   }
                   pixel = RGB(r, g, b);
                } else if (bmi->bmiHeader.biBitCount == 32 && bmi->bmiHeader.biCompression == BI_BITFIELDS &&
@@ -2164,8 +2261,7 @@ static bool fillPdfImageFromBitmap(struct processData *pd,
       }
 
       *colors = 0;
-      strcat(colors, " <");
-      clr = colors + 1 + 1;
+      clr = colors;
 
       bool isGray = true;
       map<COLORREF, BYTE>::iterator it, end = colorMap.end();
@@ -2192,11 +2288,6 @@ static bool fillPdfImageFromBitmap(struct processData *pd,
 
             sprintf(info, "%02x", g & 0xFF);
 
-            if (clr != colors + 1 + 1) {
-               strcat(clr, " ");
-               clr++;
-            }
-
             strcat(clr, info);
             clr += 2;
          } else {
@@ -2212,19 +2303,14 @@ static bool fillPdfImageFromBitmap(struct processData *pd,
 
             sprintf(info, "%02x%02x%02x", r & 0xFF, g & 0xFF, b & 0xFF);
 
-            if (clr != colors + 1 + 1) {
-               strcat(clr, " ");
-               clr++;
-            }
-
             strcat(clr, info);
             clr += 6;
          }
       }
 
-      strcat(clr, ">");
-
-      array.push_back(PdfVariant(PdfData(colors)));
+      PdfString hexStr = PdfString("", 0, true);
+      hexStr.SetHexData(colors);
+      array.push_back(PdfVariant(hexStr));
 
       free (colors);
 
@@ -3486,7 +3572,7 @@ static void maybePushWorldMatrix(struct processData *pd)
       mult.eDx = 0.0;
       mult.eDy = 0.0; 
 
-      if ((pd->currentDCState.iMapMode == MM_ANISOTROPIC || pd->currentDCState.iMapMode == MM_ISOTROPIC) && (pd->viewportExt.cy < 0 || pd->windowExt.cy < 0)) {
+      if ((pd->currentDCState.iMapMode == MM_ANISOTROPIC || pd->currentDCState.iMapMode == MM_ISOTROPIC) && (pd->currentDCState.viewportExt.cy < 0 || pd->currentDCState.windowExt.cy < 0)) {
          multiplyMatrixes(worldMatrix, mult, worldMatrix);
       } else {
          multiplyMatrixes(worldMatrix, worldMatrix, mult);
@@ -4331,15 +4417,15 @@ static void applyClipRegion(struct processData *pd, HRGN rgn2, int rgnMode)
          rgnMode = RGN_COPY;
          pd->currentDCState.clipRgn = CreateRectRgn(0, 0, 1, 1);
       } else {
-         bool switchY = (pd->currentDCState.iMapMode == MM_ANISOTROPIC || pd->currentDCState.iMapMode == MM_ISOTROPIC) && (pd->windowExt.cy < 0 || pd->viewportExt.cy < 0);
+         bool switchY = (pd->currentDCState.iMapMode == MM_ANISOTROPIC || pd->currentDCState.iMapMode == MM_ISOTROPIC) && (pd->currentDCState.windowExt.cy < 0 || pd->currentDCState.viewportExt.cy < 0);
          int pxX, pxY, pxW = 0, pxH = 0;
 
-         pxX = -(pd->viewportOrg.x - pd->windowOrg.x);
-         pxY = -(pd->viewportOrg.y - pd->windowOrg.y);
+         pxX = -(pd->currentDCState.viewportOrg.x - pd->currentDCState.windowOrg.x);
+         pxY = -(pd->currentDCState.viewportOrg.y - pd->currentDCState.windowOrg.y);
 
          if (pd->currentDCState.iMapMode == MM_ANISOTROPIC || pd->currentDCState.iMapMode == MM_ISOTROPIC) {
-            pxW = pd->windowExt.cx != 0 ? pd->windowExt.cx : pd->viewportExt.cx;
-            pxH = pd->windowExt.cy != 0 ? pd->windowExt.cy : pd->viewportExt.cy;
+            pxW = pd->currentDCState.windowExt.cx != 0 ? pd->currentDCState.windowExt.cx : pd->currentDCState.viewportExt.cx;
+            pxH = pd->currentDCState.windowExt.cy != 0 ? pd->currentDCState.windowExt.cy : pd->currentDCState.viewportExt.cy;
          }
 
          if (!pxW || !pxH) {
@@ -6080,16 +6166,16 @@ static int CALLBACK processEnhMetaFileCB(HDC hDC, HANDLETABLE *lpHTable, const E
       const EMRSCALEVIEWPORTEXTEX *dt = (const EMRSCALEVIEWPORTEXTEX *) lpEMFR;
 
       if (dt->xDenom && dt->yDenom) {
-         pd->viewportExt.cx = pd->viewportExt.cx * dt->xNum / dt->xDenom;
-         pd->viewportExt.cy = pd->viewportExt.cy * dt->yNum / dt->yDenom;
+         pd->currentDCState.viewportExt.cx = pd->currentDCState.viewportExt.cx * dt->xNum / dt->xDenom;
+         pd->currentDCState.viewportExt.cy = pd->currentDCState.viewportExt.cy * dt->yNum / dt->yDenom;
       }
    } break;
    case EMR_SCALEWINDOWEXTEX: {
       const EMRSCALEWINDOWEXTEX *dt = (const EMRSCALEWINDOWEXTEX *) lpEMFR;
 
       if (dt->xDenom && dt->yDenom) {
-         pd->windowExt.cx = pd->windowExt.cx * dt->xNum / dt->xDenom;
-         pd->windowExt.cy = pd->windowExt.cy * dt->yNum / dt->yDenom;
+         pd->currentDCState.windowExt.cx = pd->currentDCState.windowExt.cx * dt->xNum / dt->xDenom;
+         pd->currentDCState.windowExt.cy = pd->currentDCState.windowExt.cy * dt->yNum / dt->yDenom;
       }
    } break;
    case EMR_SELECTCLIPPATH: {
@@ -6395,23 +6481,23 @@ static int CALLBACK processEnhMetaFileCB(HDC hDC, HANDLETABLE *lpHTable, const E
    } break;
    case EMR_SETVIEWPORTEXTEX: {
       const EMRSETVIEWPORTEXTEX *dt = (const EMRSETVIEWPORTEXTEX *) lpEMFR;
-      pd->viewportExt.cx = dt->szlExtent.cx;
-      pd->viewportExt.cy = dt->szlExtent.cy;
+      pd->currentDCState.viewportExt.cx = dt->szlExtent.cx;
+      pd->currentDCState.viewportExt.cy = dt->szlExtent.cy;
    } break;
    case EMR_SETVIEWPORTORGEX: {
       const EMRSETVIEWPORTORGEX *dt = (const EMRSETVIEWPORTORGEX *) lpEMFR;
-      pd->viewportOrg.x = dt->ptlOrigin.x;
-      pd->viewportOrg.y = dt->ptlOrigin.y;
+      pd->currentDCState.viewportOrg.x = dt->ptlOrigin.x;
+      pd->currentDCState.viewportOrg.y = dt->ptlOrigin.y;
    } break;
    case EMR_SETWINDOWEXTEX: {
       const EMRSETWINDOWEXTEX *dt = (const EMRSETWINDOWEXTEX *) lpEMFR;
-      pd->windowExt.cx = dt->szlExtent.cx;
-      pd->windowExt.cy = dt->szlExtent.cy;
+      pd->currentDCState.windowExt.cx = dt->szlExtent.cx;
+      pd->currentDCState.windowExt.cy = dt->szlExtent.cy;
    } break;
    case EMR_SETWINDOWORGEX: {
       const EMRSETWINDOWORGEX *dt = (const EMRSETWINDOWORGEX *) lpEMFR;
-      pd->windowOrg.x = dt->ptlOrigin.x;
-      pd->windowOrg.y = dt->ptlOrigin.y;
+      pd->currentDCState.windowOrg.x = dt->ptlOrigin.x;
+      pd->currentDCState.windowOrg.y = dt->ptlOrigin.y;
    } break;
    case EMR_SETWORLDTRANSFORM: {
       const EMRSETWORLDTRANSFORM *dt = (const EMRSETWORLDTRANSFORM *) lpEMFR;

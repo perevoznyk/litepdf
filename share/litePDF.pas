@@ -86,7 +86,8 @@ type
                   LitePDFDrawFlag_EmbedFontsComplete     = 1, {**< Embed complete fonts into resulting PDF; @see LitePDFDrawFlag_EmbedFontsSubset, LitePDFDrawFlag_EmbedFontsNone }
                   LitePDFDrawFlag_EmbedFontsSubset       = 2, {**< Embed only subset of the fonts, aka used letters; this flag is used before @ref LitePDFDrawFlag_EmbedFontsComplete; @see LitePDFDrawFlag_EmbedFontsNone }
                   LitePDFDrawFlag_SubstituteFonts        = 4, {**< Substitute fonts with base PDF fonts, if possible }
-                  LitePDFDrawFlag_CompressImagesWithJPEG = 8  {**< Compress images with JPEG compression, to get smaller PDF document; this is used only for RGB images }
+                  LitePDFDrawFlag_CompressImagesWithJPEG = 8, {**< Compress images with JPEG compression, to get smaller PDF document; this is used only for RGB images }
+                  LitePDFDrawFlag_ResetGraphicsState     = 32 {**< Try to reset graphics state before appending new content to the page. This covers leftover saved states and the transformation matrix }
                );
 //---------------------------------------------------------------------------
 
@@ -140,6 +141,14 @@ type
                   LitePDFBookmarkFlag_None           = $0000, {**< Default bookmark flags *}
                   LitePDFBookmarkFlag_Italic         = $0001, {**< Show bookmark title as an italic text *}
                   LitePDFBookmarkFlag_Bold           = $0002  {**< Show bookmark title as a bold text *}
+   );
+
+//---------------------------------------------------------------------------
+
+   TLitePDFCertificationPermission = (
+                  LitePDFCertificationPermission_NoPerms      = $0001, {**< No changes to the document are permitted; any change to the document invalidates the signature. *}
+                  LitePDFCertificationPermission_FormFill     = $0002, {**< Permitted changes are filling in forms, instantiating page templates, and signing; other changes invalidate the signature. *}
+                  LitePDFCertificationPermission_Annotations  = $0003  {**< Permitted changes are the same as for @ref LitePDFCertificationPermission_FormFill, as well as annotation creation, deletion, and modification; other changes invalidate the signature. *}
    );
 
 //---------------------------------------------------------------------------
@@ -1089,7 +1098,7 @@ type
          @param index Which signature to use; counts from 0. This might be less
             than @ref GetSignatureCount.
          @param appearanceType One of the @ref LitePDFAppearance_Normal, @ref LitePDFAppearance_Rollover
-            and @ref LitePDFAppearance_Down contacts. At least the @ref LitePDFAppearance_Normal type
+            and @ref LitePDFAppearance_Down constants. At least the @ref LitePDFAppearance_Normal type
             should be set, if the appearance of the signature is requested.
          @param resourceID An existing resource ID of the annotation content, as shown to the user.
          @param offsetX_u X-offset of the resource inside the annotation of the signature, in the current unit.
@@ -1098,6 +1107,23 @@ type
          @note The resource position offset is from [left, top] corner of the annotation rectangle.
 
          @see GetUnit, AddResource, GetSignatureCount, CreateSignature
+      }
+
+      procedure SetSignatureCertification(index : LongWord;
+                                          permission : TLitePDFCertificationPermission);
+      {**<
+         Sets the signature certification. This is used to detect modifications relative to a signature
+         field that is signed by the author of a document (the person applying the first signature). A document
+         can contain only one signature field that contains the access permissions; it should be the first
+         signed field in the document. It enables the author to specify what changes are permitted to be
+         made the document and what changes invalidate the author's signature.
+
+         @param index Which signature to use; counts from 0. This might be less
+            than @ref GetSignatureCount.
+         @param permission One of the @ref LitePDFCertificationPermission_NoPerms, @ref LitePDFCertificationPermission_FormFill and
+            @ref LitePDFCertificationPermission_Annotations constants.
+
+         @see CreateSignature
       }
 
       procedure SetSignatureSize(requestBytes : LongWord);
@@ -1455,6 +1481,31 @@ type
             for accessibility reasons by the viewer.
 
          @see GetPageCount, AddResource, CreateBookmarkRoot
+      *}
+
+      procedure CreateURIAnnotation(annotationPageIndex : LongWord;
+                                    annotationPosition_u : TRect;
+                                    annotationFlags : LongWord;
+                                    annotationResourceID : LongWord;
+                                    const destinationURI : AnsiString;
+                                    const destinationDescription : WideString);
+      {**<
+         Creates a URI annotation at the given page and position, which will reference the given
+         destination URI. The context should hold a memory-based document.
+         Note, the URI annotation can be created only when the document is not drawing, to
+         have all the document pages available.
+
+         @param annotationPageIndex Page index where to place the URI annotation.
+         @param annotationPosition_u Where to place the annotation on the page, in the current unit.
+         @param annotationFlags Bit-or of @ref TLitePDFAnnotationFlags flags.
+         @param annotationResourceID Optional resource ID of the annotation content, as shown
+            to the user. 0 means do not add additional visualization on the page, but the annotation
+            can be still clicked.
+         @param destinationURI The URI the annotation points to.
+         @param destinationDescription Optional destination description, which can be used
+            for accessibility reasons by the viewer.
+
+         @see GetUnit, GetPageCount, AddResource
       *}
 
       function CreateBookmarkRoot(const title : WideString;
@@ -3044,6 +3095,24 @@ begin
    ThrowLastErrorIfFail(func(context, index, LongWord(appearanceType), resourceID, offsetX_u, offsetY_u), self, _func);
 end;
 
+procedure TLitePDF.SetSignatureCertification(index : LongWord;
+                                             permission : TLitePDFCertificationPermission);
+const _func = 'TLitePDF.SetSignatureCertification';
+type lpfunc = function(pctx : Pointer;
+                       index : LongWord;
+                       permission : LongWord) : BOOL; stdcall;
+var func : lpfunc;
+begin
+   ensureLibraryLoaded(_func);
+
+   ThrowIfFail(lib <> THandle(0), 'lib <> THandle(0)', _func);
+
+   freeLastError;
+   func := lpfunc(GetProc('litePDF_SetSignatureCertification'));
+
+   ThrowLastErrorIfFail(func(context, index, LongWord(permission)), self, _func);
+end;
+
 procedure TLitePDF.SetSignatureSize(requestBytes : LongWord);
 const _func = 'TLitePDF.SetSignatureSize';
 type lpfunc = function(pctx : Pointer; requestBytes : LongWord) : BOOL; stdcall;
@@ -3525,6 +3594,44 @@ begin
                              destinationPageIndex,
                              destinationX_u,
                              destinationY_u,
+                             PWideChar(destinationDescription)), self, _func);
+end;
+
+procedure TLitePDF.CreateURIAnnotation(annotationPageIndex : LongWord;
+                                       annotationPosition_u : TRect;
+                                       annotationFlags : LongWord;
+                                       annotationResourceID : LongWord;
+                                       const destinationURI : AnsiString;
+                                       const destinationDescription : WideString);
+const _func = 'TLitePDF.CreateURIAnnotation';
+type lpfunc = function(pctx : Pointer;
+                       annotationPageIndex : LongWord;
+                       annotationX_u : Integer;
+                       annotationY_u : Integer;
+                       annotationWidth_u : Integer;
+                       annotationHeight_u : Integer;
+                       annotationFlags : LongWord;
+                       annotationResourceID : LongWord;
+                       const destinationURI : PAnsiChar;
+                       const destinationDescription : PWideChar) : BOOL; stdcall;
+var func : lpfunc;
+begin
+   ensureLibraryLoaded(_func);
+
+   ThrowIfFail(lib <> THandle(0), 'lib <> THandle(0)', _func);
+
+   freeLastError;
+   func := lpfunc(GetProc('litePDF_CreateURIAnnotation'));
+
+   ThrowLastErrorIfFail(func(context,
+                             annotationPageIndex,
+                             annotationPosition_u.left,
+                             annotationPosition_u.top,
+                             annotationPosition_u.right - annotationPosition_u.left,
+                             annotationPosition_u.bottom - annotationPosition_u.top,
+                             annotationFlags,
+                             annotationResourceID,
+                             PAnsiChar(destinationURI),
                              PWideChar(destinationDescription)), self, _func);
 end;
 

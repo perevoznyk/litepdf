@@ -19,7 +19,7 @@ BEGIN
         BEGIN
             VALUE "FileVersion", LITEPDF_VERSION_PRETTY "\0"
             VALUE "CompanyName", "zyx\0"
-            VALUE "LegalCopyright", "(c) 2018 http://litePDF.sourceforge.net\0"
+            VALUE "LegalCopyright", "(c) 2021 http://litePDF.sourceforge.net\0"
             //VALUE "LegalTrademarks", "\0"
             #if defined(LITEPDF_STATIC_BUILD) || defined(LITEPDF_SHARED_BUILD)
             VALUE "FileDescription", "litePDF\0"
